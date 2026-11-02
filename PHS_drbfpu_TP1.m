@@ -1,4 +1,4 @@
-function out = PHS_drbfpu_TP1(m, beta, deg, nloc, do_sigma)
+function out = PHS_drbfpu_TP1(m, beta, deg, nloc, do_sigma, ntype)
 %DRBFPU_TP1  D-RBF-PU (square collocation, PHS + polynomials) for
 %  Test Problem 1 of Davydov & Safarpoor (2021):
 %
@@ -11,6 +11,7 @@ function out = PHS_drbfpu_TP1(m, beta, deg, nloc, do_sigma)
 %  deg      : polynomial degree (deg >= ceil(beta/2)-1)
 %  nloc     : target number of nodes per patch (default 3*Q)
 %  do_sigma : compute the stability constant sigma (default true; extra LU)
+%  ntype    : node type, 'uniform' (default, grid as in the paper) or 'halton'
 %
 %  Unknowns: u+ at X+ = [Xint+; Xbd+; XG] and u- at X- = [Xint-; Xbd-; XG]
 %  (two unknowns per interface node). Equations:
@@ -26,6 +27,7 @@ function out = PHS_drbfpu_TP1(m, beta, deg, nloc, do_sigma)
 Q = (deg + 1)*(deg + 2)/2;
 if nargin < 4 || isempty(nloc), nloc = 3*Q; end
 if nargin < 5, do_sigma = true; end
+if nargin < 6 || isempty(ntype), ntype = 'uniform'; end
 if mod(beta, 2) ~= 1, error('beta must be odd.'); end
 if deg < ceil(beta/2) - 1, error('Need deg >= ceil(beta/2)-1.'); end
 nmin = 2*Q;
@@ -41,7 +43,7 @@ gradq = @(x,y) [(2*s(x,y) - 30).*(-6*x.^2), (2*s(x,y) - 30)];  % grad(s^2 - 30 s
 nrm   = @(x) [-6*x.^2, ones(size(x))] ./ sqrt(1 + 36*x.^4);    % unit normal, points into Omega+
 
 %% Nodes
-nd = nodes_TP1(m);
+nd = nodes_TP1(m, ntype);
 h  = nd.h;
 Xp = [nd.Xint_p; nd.Xbd_p; nd.XG];   Xm = [nd.Xint_m; nd.Xbd_m; nd.XG];
 nIp = size(nd.Xint_p,1); nBp = size(nd.Xbd_p,1);

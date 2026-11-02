@@ -7,18 +7,19 @@ beta   = 5;              % PHS exponent, phi(r) = r^beta
 deg    = 4;              % polynomial degree  (pQR order q = deg + 1)
 Q      = (deg+1)*(deg+2)/2;
 nloc   = 3*Q;            % target number of nodes per patch
+ntype  = 'uniform';      % node type: 'uniform' (grid, as in the paper) or 'halton'
 mlist  = 0:5;            % node levels X^(m), h = 0.4/2^m
 msigma = 4;              % compute sigma only up to this level (extra LU, memory)
 mplot  = [3,4,5];        % level used for the solution / error surfaces
 
-fprintf('D-RBF-PU, PHS r^%d, degree %d (Q = %d), nloc = %d\n', beta, deg, Q, nloc);
+fprintf('D-RBF-PU, PHS r^%d, degree %d (Q = %d), nloc = %d, %s nodes\n', beta, deg, Q, nloc, ntype);
 fprintf('%3s %8s %7s %10s %10s %10s %8s %9s %8s\n', 'm', 'h', 'Nint', 'rms', 'max', ...
     'sigma', 'nnz/row', 'min nloc', 'time[s]');
 res = nan(numel(mlist), 4);
 for k = 1:numel(mlist)
     m = mlist(k);
     try
-        o = PHS_drbfpu_TP1(m, beta, deg, nloc, m <= msigma);
+        o = PHS_drbfpu_TP1(m, beta, deg, nloc, m <= msigma, ntype);
     catch err
         fprintf('%3d  failed: %s\n', m, err.message); continue
     end

@@ -1,4 +1,4 @@
-function nd = nodes_TP1(m)
+function nd = nodes_TP1(m, ntype)
 %NODES_TP1  Node set X^(m) for Test Problem 1 of Davydov & Safarpoor (2021),
 %  Appl. Numer. Math. 161, 489-509:
 %    Omega = (-1,1)^2,  Gamma: y = 2x^3,  Omega+ : y > 2x^3,  Omega- : y < 2x^3.
@@ -15,12 +15,19 @@ function nd = nodes_TP1(m)
 %     (second initial point at distance h^2), then thinned so that all
 %     interface nodes are at least 0.5h apart.
 %
+%  ntype = 'uniform' (default) : interior nodes are the grid points (paper).
+%  ntype = 'halton'            : interior nodes are Halton points in the square
+%     with the same density as the grid (n^2 points, n = 2/h), removed if they
+%     are within a*h of dOmega or of Gamma (|gamma| < a*h). Boundary and
+%     interface nodes are constructed exactly as in the uniform case.
+%
 %  Output struct nd:
 %   nd.Xint_p, nd.Xint_m : interior nodes in Omega+ / Omega-
 %   nd.Xbd_p,  nd.Xbd_m  : boundary nodes (dOmega \ Gamma) on the + / - side
 %   nd.XG                : interface nodes (Gamma, incl. Gamma cap dOmega)
 %   nd.h, nd.Nint
 
+if nargin < 2 || isempty(ntype), ntype = 'uniform'; end
 a  = 0.25;
 h  = 0.4 / 2^m;
 n1 = round(2/h) + 1;                       % grid points per side
@@ -52,12 +59,21 @@ V = V(abs(V(:,2)) < 1, :);                 % keep points of Gamma inside Omega
 XG = [-tend, -1; V; tend, 1];              % exact end points Gamma cap dOmega
 XG = thin_points(XG, 0.5*h, [1, size(XG,1)]);
 
-%% Grid points: interior / boundary, removal near Gamma
+%% Grid points: boundary nodes (both cases), interior nodes (uniform case)
 onB  = abs(abs(G(:,1)) - 1) < 1e-12 | abs(abs(G(:,2)) - 1) < 1e-12;
 keep = abs(gam(G(:,1), G(:,2))) >= a*h;
-
-Xint = G(~onB & keep, :);
 Xbd  = G( onB & keep, :);
+
+switch lower(ntype)
+    case 'uniform'
+        Xint = G(~onB & keep, :);
+    case 'halton'
+        H    = 2*haltonseq((n1 - 1)^2, 2) - 1;            % same density as the grid
+        dB   = 1 - max(abs(H), [], 2);                    % distance to dOmega
+        Xint = H(dB >= a*h & abs(gam(H(:,1), H(:,2))) >= a*h, :);
+    otherwise
+        error('ntype must be ''uniform'' or ''halton''.');
+end
 
 sp = phi(Xint(:,1), Xint(:,2)) > 0;
 nd.Xint_p = Xint( sp, :);   nd.Xint_m = Xint(~sp, :);
@@ -66,6 +82,7 @@ nd.Xbd_p  = Xbd( sb, :);    nd.Xbd_m  = Xbd(~sb, :);
 nd.XG   = XG;
 nd.h    = h;
 nd.Nint = size(Xint, 1);
+nd.type = lower(ntype);
 end
 
 % ============================================================================

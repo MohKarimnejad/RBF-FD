@@ -1,4 +1,4 @@
-function nd = nodes_TP2(m)
+function nd = nodes_TP2(m, ntype)
 %NODES_TP2  Node set X^(m) for Test Problem 2 of Davydov & Safarpoor (2021):
 %    Omega = (-1,1)^2,  Gamma: circle of radius 1/2 centred at the origin,
 %    Omega+ : r < 1/2 (inside),  Omega- : r > 1/2 (outside).
@@ -13,8 +13,15 @@ function nd = nodes_TP2(m)
 %     at most h from Gamma, its nearest point on Gamma; then thinned so that all
 %     interface nodes are at least 0.5h apart.
 %
+%  ntype = 'uniform' (default) : interior nodes are the grid points (paper).
+%  ntype = 'halton'            : interior nodes are Halton points in the square
+%     with the same density as the grid (n^2 points, n = 2/h), removed if they
+%     are within a*h of dOmega or of Gamma. Boundary nodes and the projection
+%     construction of the interface nodes are the same as in the uniform case.
+%
 %  Output struct nd: Xint_p, Xint_m, Xbd_p, Xbd_m, XG, h, Nint (as nodes_TP1).
 
+if nargin < 2 || isempty(ntype), ntype = 'uniform'; end
 a  = 0.25;
 h0 = 0.15 / 2^m;
 n  = round(2/h0);
@@ -25,8 +32,18 @@ G  = [GX(:), GY(:)];
 r  = sqrt(G(:,1).^2 + G(:,2).^2);
 
 onB  = abs(abs(G(:,1)) - 1) < 1e-12 | abs(abs(G(:,2)) - 1) < 1e-12;
-keep = abs(r - 0.5) >= a*h;
-Xint = G(~onB & keep, :);
+switch lower(ntype)
+    case 'uniform'
+        keep = abs(r - 0.5) >= a*h;
+        Xint = G(~onB & keep, :);
+    case 'halton'
+        H    = 2*haltonseq(n^2, 2) - 1;                   % same density as the grid
+        dB   = 1 - max(abs(H), [], 2);                    % distance to dOmega
+        rH   = sqrt(H(:,1).^2 + H(:,2).^2);
+        Xint = H(dB >= a*h & abs(rH - 0.5) >= a*h, :);
+    otherwise
+        error('ntype must be ''uniform'' or ''halton''.');
+end
 rint = sqrt(Xint(:,1).^2 + Xint(:,2).^2);
 nd.Xint_p = Xint(rint < 0.5, :);
 nd.Xint_m = Xint(rint > 0.5, :);
@@ -42,6 +59,7 @@ XG = thin_points(XG, 0.5*h);
 nd.XG   = XG;
 nd.h    = h;
 nd.Nint = size(Xint, 1);
+nd.type = lower(ntype);
 end
 
 function X = thin_points(X, dmin)
