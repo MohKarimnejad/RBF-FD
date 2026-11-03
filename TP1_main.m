@@ -57,18 +57,5 @@ for m = mplot
     subplot(1,2,2)
     trisurf(tri, o.Xall(:,1), o.Xall(:,2), o.eall, 'EdgeColor', 'none')
     title('Absolute error'); view(-37.5, 30); axis tight
-    sgtitle(sprintf('%s, %s nodes, level %d', upper(solver), ntype, m))
-
-    % Normalized error alpha*|e| and truncation error |tau| = |A u_exact - b|
-    figure('Position', [100 100 1100 420])
-    subplot(1,2,1)
-    trisurf(tri, o.Xall(:,1), o.Xall(:,2), o.enorm, 'EdgeColor', 'none')
-    title('Normalized error \alpha|e|'); view(-37.5, 30); axis tight
-    subplot(1,2,2)
-    scatter(o.Xtau_lap(:,1), o.Xtau_lap(:,2), 8, log10(o.tau_lap + realmin), 'filled'); hold on
-    scatter(o.Xtau_dn(:,1), o.Xtau_dn(:,2), 40, log10(o.tau_dn + realmin), 'filled', ...
-        'MarkerEdgeColor', 'r')
-    axis equal tight; box on; colorbar
-    title('log_{10}|\tau|  (dots: Laplacian rows, red circles: flux rows on \Gamma)')
-    sgtitle(sprintf('%s, %s nodes, level %d', upper(solver), ntype, m))
+    sgtitle(sprintf('%s, Test Problem 1, X^{(%d)} (h = %g), PHS r^%d, degree %d', m, o.h, beta, deg))
 end
