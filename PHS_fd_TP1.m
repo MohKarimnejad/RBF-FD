@@ -120,6 +120,12 @@ iBp = nIp + (1:nBp); iBm = nIm + (1:nBm);
 out.Xall = [Xp(1:nIp,:); Xm(1:nIm,:); Xp(iBp,:); Xm(iBm,:); xg];
 out.uall = [u(1:nIp); u(Np + (1:nIm)); u(iBp); u(Np + iBm); u(iGp)];
 out.eall = [ep_(1:nIp); em_(1:nIm); ep_(iBp); em_(iBm); max(ep_(iGp), em_(iGm))];
+
+%% Relative error for plots: |e| divided by max|u| of its own side,
+%  e_rel = |e+|/max|u+| on X+,  |e-|/max|u-| on X-;  interface nodes: max of the two.
+sp = max(abs(uep));  sm = max(abs(uem));
+out.erel = [ep_(1:nIp)/sp; em_(1:nIm)/sm; ep_(iBp)/sp; em_(iBm)/sm; ...
+            max(ep_(iGp)/sp, em_(iGm)/sm)];
 end
 
 % ============================================================================

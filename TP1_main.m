@@ -55,7 +55,7 @@ for m = mplot
     trisurf(tri, o.Xall(:,1), o.Xall(:,2), o.uall, 'EdgeColor', 'none')
     title('Numerical solution'); view(-37.5, 30); axis tight
     subplot(1,2,2)
-    trisurf(tri, o.Xall(:,1), o.Xall(:,2), o.eall, 'EdgeColor', 'none')
-    title('Absolute error'); view(-37.5, 30); axis tight
+    trisurf(tri, o.Xall(:,1), o.Xall(:,2), o.erel, 'EdgeColor', 'none')
+    title('Relative error |e|/max|u| (per side)'); view(-37.5, 30); axis tight
     sgtitle(sprintf('Test problem 1, %s, %s nodes, level %d, poly degree %d', upper(solver), ntype, m, deg))
 end
