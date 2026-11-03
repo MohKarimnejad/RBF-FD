@@ -97,6 +97,12 @@ A = sparse(vertcat(I{:}), vertcat(J{:}), vertcat(V{:}), Ntot, Ntot);
 u = A \ b;
 t = toc;
 
+%% Truncation error tau = A u_exact - b (one entry per row)
+%  Row order: Lap rows of Xint+, Lap rows of Xint-, Dirichlet rows (tau = 0),
+%  jump rows [u] (tau = 0), flux rows [alpha du/dn] at XG.
+uex = [up(Xp(:,1), Xp(:,2)); um(Xm(:,1), Xm(:,2))];
+tau = A*uex - b;
+
 %% Errors on interior nodes (as in the paper: rms and max over X_int)
 ue = [up(Xp(1:nIp,1), Xp(1:nIp,2)); um(Xm(1:nIm,1), Xm(1:nIm,2))];
 uh = [u(1:nIp); u(Np + (1:nIm))];
@@ -120,6 +126,19 @@ iBp = nIp + (1:nBp); iBm = nIm + (1:nBm);
 out.Xall = [Xp(1:nIp,:); Xm(1:nIm,:); Xp(iBp,:); Xm(iBm,:); xg];
 out.uall = [u(1:nIp); u(Np + (1:nIm)); u(iBp); u(Np + iBm); u(iGp)];
 out.eall = [ep_(1:nIp); em_(1:nIm); ep_(iBp); em_(iBm); max(ep_(iGp), em_(iGm))];
+
+%% Normalized error alpha*|e| (u+- = q/alpha+-, so both sides have the same scale)
+%  Interface nodes: max(alpha+ |e+|, alpha- |e-|).
+out.enorm = [ap*ep_(1:nIp); am*em_(1:nIm); ap*ep_(iBp); am*em_(iBm); ...
+             max(ap*ep_(iGp), am*em_(iGm))];
+
+%% Truncation error map
+%  out.tau_lap at out.Xtau_lap : |tau| of the Laplacian rows (Xint+ then Xint-)
+%  out.tau_dn  at out.Xtau_dn  : |tau| of the flux-jump rows (interface nodes)
+out.Xtau_lap = [Xp(1:nIp,:); Xm(1:nIm,:)];
+out.tau_lap  = abs(tau(1:nIp+nIm));
+out.Xtau_dn  = xg;
+out.tau_dn   = abs(tau(end-nG+1:end));
 end
 
 % ============================================================================
