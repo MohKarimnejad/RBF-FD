@@ -57,5 +57,5 @@ for m = mplot
     subplot(1,2,2)
     trisurf(tri, o.Xall(:,1), o.Xall(:,2), o.eall, 'EdgeColor', 'none')
     title('Absolute error'); view(-37.5, 30); axis tight
-    sgtitle(sprintf('%s, Test Problem 1, X^{(%d)} (h = %g), PHS r^%d, degree %d', m, o.h, beta, deg))
+    sgtitle(sprintf('Test problem 1, %s, %s nodes, level %d, poly degree %d', upper(solver), ntype, m, deg))
 end
