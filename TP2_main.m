@@ -3,7 +3,7 @@ clc; clear; close all
 %  Errors as in the paper: rms and max over the interior nodes X_int;
 %  sigma = condest(A')/norm(A,inf) as in (3.2).
 
-solver = 'PU';           % solver: 'PU' (D-RBF-PU) or 'FD' (RBF-FD)
+solver = 'FD';           % solver: 'PU' (D-RBF-PU) or 'FD' (RBF-FD)
 beta   = 5;              % PHS exponent, phi(r) = r^beta
 deg    = 6;              % polynomial degree  (pQR order q = deg + 1)
 Q      = (deg+1)*(deg+2)/2;
