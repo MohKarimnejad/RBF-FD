@@ -4,8 +4,8 @@ clc; clear; close all
 %  sigma = condest(A')/norm(A,inf) as in (3.2).
 
 solver = 'FD';           % solver: 'PU' (direct PU) or 'FD' (finite differences)
-basis  = 'phs';          % local basis: 'phs' (PHS + polynomials), 'ls' (polynomials, least squares)
-                         %              or 'gmls' (polynomials, weighted least squares = GMLS)
+basis  = 'phs';          % local basis: 'phs' (PHS + polynomials), 'gmls' (polynomials, GMLS)
+                         %              or 'pqr' (polynomials, pQR of Davydov & Safarpoor)
 beta   = 5;              % PHS exponent, phi(r) = r^beta
 deg    = 4;              % polynomial degree  (pQR order q = deg + 1)
 Q      = (deg+1)*(deg+2)/2;
@@ -22,7 +22,7 @@ switch upper(solver)
 end
 sname = sprintf('%s [%s]', sname, basis);
 
-if any(strcmp(basis, {'gmls', 'ls'}))       % polynomial-only: no PHS exponent
+if any(strcmp(basis, {'gmls', 'pqr'}))       % polynomial-only: no PHS exponent
     fprintf('%s, degree %d (Q = %d), nloc = %d, %s nodes\n', sname, deg, Q, nloc, ntype);
 else
     fprintf('%s, PHS r^%d, degree %d (Q = %d), nloc = %d, %s nodes\n', sname, beta, deg, Q, nloc, ntype);

@@ -13,9 +13,11 @@ function out = PHS_drbfpu_TP1(m, beta, deg, nloc, do_sigma, ntype, basis)
 %  do_sigma : compute the stability constant sigma (default true; extra LU)
 %  ntype    : node type, 'uniform' (default, grid as in the paper) or 'halton'
 %  basis    : local approximation, 'phs' (default, PHS + polynomials),
-%             'ls' (polynomials only, unweighted least squares) or
-%             'gmls' (polynomials only, weighted least squares = GMLS,
-%             Wendland weight centred at the row point, support 1.5 x max distance)
+%             'gmls' (polynomials only, weighted least squares = GMLS at the row point x
+%             on the nodes of each patch, Wendland weight centred at x, support 1.5 x max
+%             distance) or
+%             'pqr' (polynomials only, pQR method of Davydov & Safarpoor at x on the
+%             nodes of each patch); in both cases the patch formulas are Shepard-blended.
 %
 %  Unknowns: u+ at X+ = [Xint+; Xbd+; XG] and u- at X- = [Xint-; Xbd-; XG]
 %  (two unknowns per interface node). Equations:
@@ -34,7 +36,7 @@ if nargin < 5, do_sigma = true; end
 if nargin < 6 || isempty(ntype), ntype = 'uniform'; end
 if nargin < 7 || isempty(basis), basis = 'phs'; end
 basis = lower(basis);
-if ~ismember(basis, {'phs','ls','gmls'}), error('basis must be ''phs'', ''ls'' or ''gmls''.'); end
+if ~ismember(basis, {'phs','gmls','pqr'}), error('basis must be ''phs'', ''gmls'' or ''pqr''.'); end
 if strcmp(basis, 'phs')
     if mod(beta, 2) ~= 1, error('beta must be odd.'); end
     if deg < ceil(beta/2) - 1, error('Need deg >= ceil(beta/2)-1.'); end
@@ -65,7 +67,7 @@ iGm = nIm + nBm + (1:nG);            % interface nodes in X- (local)
 %% PHS kernel, polynomial basis, and the functionals (in scaled coordinates)
 ea = []; eb = [];                                 % monomials x^a y^b, a+b <= deg
 for tt = 0:deg, for bb = 0:tt, ea(end+1) = tt-bb; eb(end+1) = bb; end, end %#ok<AGROW>
-K.beta = beta; K.ea = ea; K.eb = eb; K.Q = Q; K.basis = basis;
+K.beta = beta; K.ea = ea; K.eb = eb; K.Q = Q; K.basis = basis; K.deg = deg;
 
 %% Patches (base radius from nloc: pi R^2 / h^2 = nloc; centre spacing = R)
 R0  = h * sqrt(nloc/pi);
@@ -228,7 +230,19 @@ for k = 1:numel(irows)
             sol = Uf \ (Lf \ rhs(pf));
             al  = sol(1:numel(J)) / sc;
         else
-            al  = poly_weights(P, rp, rr, K.basis) / sc;
+            if strcmp(K.basis, 'gmls')
+                al  = gmls_weights(P, rp, rr) / sc;
+            else                                      % 'pqr': basis shifted/scaled to x
+                Yx = Yh - xh;  hx = max(rr);  Ys = Yx / hx;
+                Px = (Ys(:,1).^ea) .* (Ys(:,2).^eb);
+                bx = zeros(numel(ea), 1);
+                if strcmp(type, 'lap')
+                    bx(ea==2 & eb==0) = 2; bx(ea==0 & eb==2) = 2;  kx = 2;
+                else
+                    bx(ea==1 & eb==0) = n(1); bx(ea==0 & eb==1) = n(2);  kx = 1;
+                end
+                al  = pqr_weights(Px, bx, rr, K.deg + 1) / hx^kx / sc;
+            end
         end
         Ii = [Ii; k*ones(numel(J),1)]; Jj = [Jj; J]; Vv = [Vv; w(q)*al]; %#ok<AGROW>
     end
@@ -237,19 +251,43 @@ end
 Ii = vertcat(Ic{:}); Jj = vertcat(Jc{:}); Vv = vertcat(Vc{:});
 end
 
-function al = poly_weights(P, rp, d, basis)
-% Polynomial-only weights (n > Q): exact on the polynomials, P' al = rp.
-%   'ls'  : al = P (P'P)^-1 rp            (unweighted least squares, minimal 2-norm)
-%   'gmls': al = Th P (P' Th P)^-1 rp      (weighted least squares = GMLS),
-%           Th = diag(theta_j), theta_j = Wendland C2 of d_j / (1.5 max d),
-%           d_j = distance from the row point x to node j (weights centred at x).
-if strcmp(basis, 'ls')
-    th = ones(size(d));
-else
-    rho = d / (1.5*max(d));
-    th  = max(1 - rho, 0).^4 .* (4*rho + 1);
-end
+function al = gmls_weights(P, rp, d)
+% GMLS weights (n > Q): exact on the polynomials, P' al = rp, minimal weighted 2-norm:
+%   al = Th P (P' Th P)^-1 rp,  Th = diag(theta_j),
+%   theta_j = Wendland C2 of d_j / (1.5 max d), d_j = distance from the row point x to
+%   node j (weight centred at x). Computed by QR of sqrt(Th) P.
+rho = d / (1.5*max(d));
+th  = max(1 - rho, 0).^4 .* (4*rho + 1);
 s = sqrt(th);
 [Qm, Rm] = qr(s .* P, 0);
 al = s .* (Qm * (Rm' \ rp(:)));
+end
+
+function al = pqr_weights(P, rp, d, q)
+% pQR weights of Davydov & Safarpoor (2021), Sec. 2 (algorithm "pQR method of order q").
+%   P  : basis evaluated at the stencil nodes, monomials shifted to the row point x and
+%        scaled by the largest distance (column 1 = constant, all other columns vanish at x)
+%   rp : the operator applied to the basis at x (same scaled coordinates)
+%   d  : distances ||y_j - x|| (one of them is 0: the row point itself)
+%   q  : order (exact for polynomials of degree q-1)
+% The equation for the constant is eliminated; the system A w = b (A = basis 2..Q at the
+% nodes y_j ~= x) is rescaled as (A Th) v = b, w = Th v, Th = diag(d_j^-q), and solved by
+% QR with column pivoting (basic solution, at most rank(A) nonzero weights). The weight of
+% x is fixed by exactness for the constant: w_x = rp(1) - sum_j w_j.
+rp = rp(:);  n = numel(d);
+i0 = find(d <= 1e-12*max(d), 1);
+if isempty(i0), error('pqr_weights: the row point must belong to the stencil.'); end
+ir = setdiff((1:n)', i0);
+A  = P(ir, 2:end)';                               % (Q-1) x (n-1)
+b  = rp(2:end);
+th = d(ir).^(-q);  th = th / max(th);             % Th (scaled, scale-free)
+[Qm, Rm, E] = qr(A .* th', 0);                    % (A Th)(:,E) = Qm Rm
+dR = abs(diag(Rm));
+r  = sum(dR > 1e-12*dR(1));                       % numerical rank
+vt = Rm(1:r,1:r) \ (Qm(:,1:r)' * b);
+v  = zeros(numel(ir), 1);  v(E(1:r)) = vt;
+al = zeros(n, 1);
+al(ir) = th .* v;
+al(i0) = rp(1) - sum(al(ir));
+al(abs(al) < 1e-12*max(abs(al))) = 0;          % round-off weights: node not selected
 end
