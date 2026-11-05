@@ -129,6 +129,18 @@ end
 out.nnz_row = nnz(A) / Ntot;
 out.time = t;
 
+%% Growth function of the Laplacian rows (Davydov-Schaback), exponent q = deg:
+%  rho_i = sum_j |w_ij| * ||x_j - x_i||^deg,  w = Laplacian weights of row i
+%  (the global row divided by -alpha), one value per interior node.
+nL = nIp + nIm;
+[ri, ci, vi] = find(A(1:nL, :));
+Xu  = [Xp; Xm];
+Xr  = [Xp(1:nIp,:); Xm(1:nIm,:)];
+alr = [ap*ones(nIp,1); am*ones(nIm,1)];
+dij = sqrt(sum((Xu(ci,:) - Xr(ri,:)).^2, 2));
+out.growth  = accumarray(ri, abs(vi) ./ alr(ri) .* dij.^deg, [nL, 1]);
+out.Xgrowth = Xr;
+
 %% Solution and absolute error at all nodes (for plots, as Fig. 9 of the paper)
 %  Interface nodes appear once: value u+, error max(|u+ - u|, |u- - u|).
 uep = up(Xp(:,1), Xp(:,2)); uem = um(Xm(:,1), Xm(:,2));

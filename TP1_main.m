@@ -57,12 +57,16 @@ title(sprintf('%s, Test Problem 1, PHS r^%d, degree %d, nloc = %d', sname, beta,
 for m = mplot
     o   = op{m+1};
     tri = delaunay(o.Xall(:,1), o.Xall(:,2));
-    figure('Position', [100 100 1100 420])
-    subplot(1,2,1)
+    figure('Position', [100 100 1500 420])
+    subplot(1,3,1)
     trisurf(tri, o.Xall(:,1), o.Xall(:,2), o.uall, 'EdgeColor', 'none')
     title('Numerical solution'); view(-37.5, 30); axis tight
-    subplot(1,2,2)
+    subplot(1,3,2)
     trisurf(tri, o.Xall(:,1), o.Xall(:,2), o.erel, 'EdgeColor', 'none')
     title('Relative error |e|/max|u| (per side)'); view(-37.5, 30); axis tight
+    subplot(1,3,3)
+    scatter(o.Xgrowth(:,1), o.Xgrowth(:,2), 6, log10(o.growth), 'filled')
+    axis equal tight; box on; colorbar
+    title(sprintf('log_{10} growth function (q = %d)', deg))
     sgtitle(sprintf('Test problem 1, %s, %s nodes, level %d, poly degree %d', upper(solver), ntype, m, deg))
 end
