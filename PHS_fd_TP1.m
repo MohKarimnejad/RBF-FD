@@ -1,4 +1,4 @@
-function out = PHS_fd_TP1(m, beta, deg, nloc, do_sigma, ntype)
+function out = PHS_fd_TP1(m, beta, deg, nloc, do_sigma, ntype, basis)
 %PHS_FD_TP1  RBF-FD (square collocation, PHS + polynomials) for
 %  Test Problem 1 of Davydov & Safarpoor (2021):
 %
@@ -12,6 +12,10 @@ function out = PHS_fd_TP1(m, beta, deg, nloc, do_sigma, ntype)
 %  nloc     : stencil size = number of nearest nodes of the same side (default 3*Q)
 %  do_sigma : compute the stability constant sigma (default true; extra LU)
 %  ntype    : node type, 'uniform' (default, grid as in the paper) or 'halton'
+%  basis    : local approximation, 'phs' (default, PHS + polynomials),
+%             'ls' (polynomials only, unweighted least squares) or
+%             'wls' (polynomials only, weighted least squares = GMLS,
+%             Wendland weight centred at the row point, support 1.5 x max distance)
 %
 %  Unknowns: u+ at X+ = [Xint+; Xbd+; XG] and u- at X- = [Xint-; Xbd-; XG]
 %  (two unknowns per interface node). Equations:
@@ -28,8 +32,13 @@ Q = (deg + 1)*(deg + 2)/2;
 if nargin < 4 || isempty(nloc), nloc = 3*Q; end
 if nargin < 5, do_sigma = true; end
 if nargin < 6 || isempty(ntype), ntype = 'uniform'; end
-if mod(beta, 2) ~= 1, error('beta must be odd.'); end
-if deg < ceil(beta/2) - 1, error('Need deg >= ceil(beta/2)-1.'); end
+if nargin < 7 || isempty(basis), basis = 'phs'; end
+basis = lower(basis);
+if ~ismember(basis, {'phs','ls','wls'}), error('basis must be ''phs'', ''ls'' or ''wls''.'); end
+if strcmp(basis, 'phs')
+    if mod(beta, 2) ~= 1, error('beta must be odd.'); end
+    if deg < ceil(beta/2) - 1, error('Need deg >= ceil(beta/2)-1.'); end
+end
 
 %% Exact solution and data
 ap = 20; am = 1;
@@ -55,7 +64,7 @@ iGm = nIm + nBm + (1:nG);            % interface nodes in X- (local)
 %% PHS kernel, polynomial basis, and the functionals (in scaled coordinates)
 ea = []; eb = [];                                 % monomials x^a y^b, a+b <= deg
 for tt = 0:deg, for bb = 0:tt, ea(end+1) = tt-bb; eb(end+1) = bb; end, end %#ok<AGROW>
-K.beta = beta; K.ea = ea; K.eb = eb; K.Q = Q;
+K.beta = beta; K.ea = ea; K.eb = eb; K.Q = Q; K.basis = basis;
 
 tic
 nsp = min(nloc, Np); nsm = min(nloc, Nm);       % stencil size (capped by side size)
@@ -145,8 +154,10 @@ for k = 1:numel(irows)
     Yh = X(J,:) - x;
     r  = sqrt(max(Yh(:,1).^2 + Yh(:,2).^2));
     Yh = Yh / r;
-    A  = sqrt((Yh(:,1) - Yh(:,1)').^2 + (Yh(:,2) - Yh(:,2)').^2).^b;
     P  = (Yh(:,1).^ea) .* (Yh(:,2).^eb);
+    if strcmp(K.basis, 'phs')
+        A  = sqrt((Yh(:,1) - Yh(:,1)').^2 + (Yh(:,2) - Yh(:,2)').^2).^b;
+    end
     rr = sqrt(Yh(:,1).^2 + Yh(:,2).^2);
     if strcmp(type, 'lap')
         rk = b^2 * rr.^(b-2);                                     % Lap_x r^beta at x_hat = 0
@@ -157,8 +168,30 @@ for k = 1:numel(irows)
         rp = zeros(Q,1); rp(ea==1 & eb==0) = nn(1); rp(ea==0 & eb==1) = nn(2);
         sc = r;
     end
-    sol = [A, P; P', zeros(Q)] \ [rk; rp];
-    Ic{k} = k*ones(n,1); Jc{k} = J; Vc{k} = sol(1:n) / sc;
+    if strcmp(K.basis, 'phs')
+        sol = [A, P; P', zeros(Q)] \ [rk; rp];
+        al  = sol(1:n);
+    else
+        al  = poly_weights(P, rp, rr, K.basis);
+    end
+    Ic{k} = k*ones(n,1); Jc{k} = J; Vc{k} = al / sc;
 end
 Ii = vertcat(Ic{:}); Jj = vertcat(Jc{:}); Vv = vertcat(Vc{:});
+end
+
+function al = poly_weights(P, rp, d, basis)
+% Polynomial-only weights (n > Q): exact on the polynomials, P' al = rp.
+%   'ls'  : al = P (P'P)^-1 rp            (unweighted least squares, minimal 2-norm)
+%   'wls' : al = Th P (P' Th P)^-1 rp      (weighted least squares = GMLS),
+%           Th = diag(theta_j), theta_j = Wendland C2 of d_j / (1.5 max d),
+%           d_j = distance from the row point x to node j (weights centred at x).
+if strcmp(basis, 'ls')
+    th = ones(size(d));
+else
+    rho = d / (1.5*max(d));
+    th  = max(1 - rho, 0).^4 .* (4*rho + 1);
+end
+s = sqrt(th);
+[Qm, Rm] = qr(s .* P, 0);
+al = s .* (Qm * (Rm' \ rp(:)));
 end

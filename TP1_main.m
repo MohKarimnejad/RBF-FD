@@ -4,6 +4,8 @@ clc; clear; close all
 %  sigma = condest(A')/norm(A,inf) as in (3.2).
 
 solver = 'FD';           % solver: 'PU' (D-RBF-PU) or 'FD' (RBF-FD)
+basis  = 'phs';          % local basis: 'phs' (PHS + polynomials), 'ls' (polynomials, least squares)
+                         %              or 'wls' (polynomials, weighted least squares = GMLS)
 beta   = 5;              % PHS exponent, phi(r) = r^beta
 deg    = 4;              % polynomial degree  (pQR order q = deg + 1)
 Q      = (deg+1)*(deg+2)/2;
@@ -18,6 +20,7 @@ switch upper(solver)
     case 'FD', solve = @PHS_fd_TP1;     sname = 'RBF-FD';
     otherwise, error('solver must be ''PU'' or ''FD''.');
 end
+sname = sprintf('%s [%s]', sname, basis);
 
 fprintf('%s, PHS r^%d, degree %d (Q = %d), nloc = %d, %s nodes\n', sname, beta, deg, Q, nloc, ntype);
 fprintf('%3s %8s %7s %10s %10s %10s %8s %9s %8s\n', 'm', 'h', 'Nint', 'rms', 'max', ...
@@ -26,7 +29,7 @@ res = nan(numel(mlist), 4);
 for k = 1:numel(mlist)
     m = mlist(k);
     try
-        o = solve(m, beta, deg, nloc, m <= msigma, ntype);
+        o = solve(m, beta, deg, nloc, m <= msigma, ntype, basis);
     catch err
         fprintf('%3d  failed: %s\n', m, err.message); continue
     end

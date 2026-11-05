@@ -1,4 +1,4 @@
-function out = PHS_drbfpu_TP2(m, beta, deg, nloc, do_sigma, ntype)
+function out = PHS_drbfpu_TP2(m, beta, deg, nloc, do_sigma, ntype, basis)
 %DRBFPU_TP2  D-RBF-PU (square collocation, PHS + polynomials) for
 %  Test Problem 2 of Davydov & Safarpoor (2021):
 %
@@ -14,6 +14,10 @@ function out = PHS_drbfpu_TP2(m, beta, deg, nloc, do_sigma, ntype)
 %  nloc     : target number of nodes per patch (default 3*Q)
 %  do_sigma : compute the stability constant sigma (default true; extra LU)
 %  ntype    : node type, 'uniform' (default, grid as in the paper) or 'halton'
+%  basis    : local approximation, 'phs' (default, PHS + polynomials),
+%             'ls' (polynomials only, unweighted least squares) or
+%             'wls' (polynomials only, weighted least squares = GMLS,
+%             Wendland weight centred at the row point, support 1.5 x max distance)
 %
 %  Unknowns: u+ at X+ = [Xint+; Xbd+; XG] and u- at X- = [Xint-; Xbd-; XG]
 %  (two unknowns per interface node). Equations:
@@ -30,8 +34,13 @@ Q = (deg + 1)*(deg + 2)/2;
 if nargin < 4 || isempty(nloc), nloc = 3*Q; end
 if nargin < 5, do_sigma = true; end
 if nargin < 6 || isempty(ntype), ntype = 'uniform'; end
-if mod(beta, 2) ~= 1, error('beta must be odd.'); end
-if deg < ceil(beta/2) - 1, error('Need deg >= ceil(beta/2)-1.'); end
+if nargin < 7 || isempty(basis), basis = 'phs'; end
+basis = lower(basis);
+if ~ismember(basis, {'phs','ls','wls'}), error('basis must be ''phs'', ''ls'' or ''wls''.'); end
+if strcmp(basis, 'phs')
+    if mod(beta, 2) ~= 1, error('beta must be odd.'); end
+    if deg < ceil(beta/2) - 1, error('Need deg >= ceil(beta/2)-1.'); end
+end
 nmin = 2*Q;
 
 %% Exact solution and data
@@ -57,7 +66,7 @@ iGm = nIm + nBm + (1:nG);            % interface nodes in X- (local)
 %% PHS kernel, polynomial basis, and the functionals (in scaled coordinates)
 ea = []; eb = [];                                 % monomials x^a y^b, a+b <= deg
 for tt = 0:deg, for bb = 0:tt, ea(end+1) = tt-bb; eb(end+1) = bb; end, end %#ok<AGROW>
-K.beta = beta; K.ea = ea; K.eb = eb; K.Q = Q;
+K.beta = beta; K.ea = ea; K.eb = eb; K.Q = Q; K.basis = basis;
 
 %% Patches (base radius from nloc: pi R^2 / h^2 = nloc; centre spacing = R)
 R0  = h * sqrt(nloc/pi);
@@ -155,10 +164,14 @@ for l = 1:nP
         error('Patch with %d nodes; need more than Q = %d (level too coarse for this degree).', numel(J), K.Q);
     end
     Yh = (X(J,:) - S.C(l,:)) / r;                         % scaled coordinates
-    A  = sqrt((Yh(:,1) - Yh(:,1)').^2 + (Yh(:,2) - Yh(:,2)').^2).^K.beta;
     P  = (Yh(:,1).^K.ea) .* (Yh(:,2).^K.eb);
-    [Lf, Uf, pf] = lu([A, P; P', zeros(K.Q)], 'vector');
-    S.J{l} = J; S.R(l) = r; S.F{l} = {Lf, Uf, pf, Yh};
+    if strcmp(K.basis, 'phs')
+        A  = sqrt((Yh(:,1) - Yh(:,1)').^2 + (Yh(:,2) - Yh(:,2)').^2).^K.beta;
+        [Lf, Uf, pf] = lu([A, P; P', zeros(K.Q)], 'vector');
+    else
+        Lf = []; Uf = []; pf = [];                        % polynomial-only: solved per row
+    end
+    S.J{l} = J; S.R(l) = r; S.F{l} = {Lf, Uf, pf, Yh, P};
 end
 end
 
@@ -178,7 +191,7 @@ for k = 1:numel(irows)
     Ii = []; Jj = []; Vv = [];
     for q = 1:numel(pl)
         l  = pl(q); J = S.J{l}; r = S.R(l);
-        [Lf, Uf, pf, Yh] = S.F{l}{:};
+        [Lf, Uf, pf, Yh, P] = S.F{l}{:};
         xh = (x - S.C(l,:)) / r;
         dx = xh(1) - Yh(:,1); dy = xh(2) - Yh(:,2); rr = sqrt(dx.^2 + dy.^2);
         if strcmp(type, 'lap')
@@ -193,12 +206,33 @@ for k = 1:numel(irows)
                  n(2) * eb .* xh(1).^ea .* xh(2).^max(eb-1,0);
             sc = r;
         end
-        rhs = [rk; rp(:)];
-        sol = Uf \ (Lf \ rhs(pf));
-        al  = sol(1:numel(J)) / sc;
+        if strcmp(K.basis, 'phs')
+            rhs = [rk; rp(:)];
+            sol = Uf \ (Lf \ rhs(pf));
+            al  = sol(1:numel(J)) / sc;
+        else
+            al  = poly_weights(P, rp, rr, K.basis) / sc;
+        end
         Ii = [Ii; k*ones(numel(J),1)]; Jj = [Jj; J]; Vv = [Vv; w(q)*al]; %#ok<AGROW>
     end
     Ic{k} = Ii; Jc{k} = Jj; Vc{k} = Vv;
 end
 Ii = vertcat(Ic{:}); Jj = vertcat(Jc{:}); Vv = vertcat(Vc{:});
+end
+
+function al = poly_weights(P, rp, d, basis)
+% Polynomial-only weights (n > Q): exact on the polynomials, P' al = rp.
+%   'ls'  : al = P (P'P)^-1 rp            (unweighted least squares, minimal 2-norm)
+%   'wls' : al = Th P (P' Th P)^-1 rp      (weighted least squares = GMLS),
+%           Th = diag(theta_j), theta_j = Wendland C2 of d_j / (1.5 max d),
+%           d_j = distance from the row point x to node j (weights centred at x).
+if strcmp(basis, 'ls')
+    th = ones(size(d));
+else
+    rho = d / (1.5*max(d));
+    th  = max(1 - rho, 0).^4 .* (4*rho + 1);
+end
+s = sqrt(th);
+[Qm, Rm] = qr(s .* P, 0);
+al = s .* (Qm * (Rm' \ rp(:)));
 end
