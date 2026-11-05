@@ -15,11 +15,9 @@ function out = PHS_drbfpu_TP2(m, beta, deg, nloc, do_sigma, ntype, basis)
 %  do_sigma : compute the stability constant sigma (default true; extra LU)
 %  ntype    : node type, 'uniform' (default, grid as in the paper) or 'halton'
 %  basis    : local approximation, 'phs' (default, PHS + polynomials),
-%             'ls' (polynomials only, unweighted least squares fit on each patch) or
-%             'gmls' (polynomials only, weighted least squares fit on each patch,
-%             Wendland weight centred at the patch centre, support 1.5 x patch radius).
-%             For 'ls'/'gmls' each patch has ONE local fit, computed once; L is then
-%             applied to it at every evaluation point x (as for the PHS patches).
+%             'ls' (polynomials only, unweighted least squares) or
+%             'gmls' (polynomials only, weighted least squares = GMLS,
+%             Wendland weight centred at the row point, support 1.5 x max distance)
 %
 %  Unknowns: u+ at X+ = [Xint+; Xbd+; XG] and u- at X- = [Xint-; Xbd-; XG]
 %  (two unknowns per interface node). Equations:
@@ -183,19 +181,7 @@ for l = 1:nP
         A  = sqrt((Yh(:,1) - Yh(:,1)').^2 + (Yh(:,2) - Yh(:,2)').^2).^K.beta;
         [Lf, Uf, pf] = lu([A, P; P', zeros(K.Q)], 'vector');
     else
-        % polynomial-only: one (weighted) least squares fit per patch, computed once.
-        % Fit weights theta_j: 1 ('ls') or Wendland C2 of ||y_j - c||/(1.5 r) ('gmls').
-        % Weights of L applied to the fit at x: al = M * Lp(x), M = Th P (P' Th P)^-1.
-        if strcmp(K.basis, 'ls')
-            th = ones(numel(J), 1);
-        else
-            rho = sqrt(Yh(:,1).^2 + Yh(:,2).^2) / 1.5;
-            th  = max(1 - rho, 0).^4 .* (4*rho + 1);
-        end
-        sq = sqrt(th);
-        [Qm, Rm] = qr(sq .* P, 0);
-        Lf = sq .* (Qm / Rm');                            % M (n x Q), stored in place of the LU
-        Uf = []; pf = [];
+        Lf = []; Uf = []; pf = [];                        % polynomial-only: solved per row
     end
     S.J{l} = J; S.R(l) = r; S.F{l} = {Lf, Uf, pf, Yh, P};
 end
@@ -237,11 +223,28 @@ for k = 1:numel(irows)
             sol = Uf \ (Lf \ rhs(pf));
             al  = sol(1:numel(J)) / sc;
         else
-            al  = (Lf * rp(:)) / sc;                       % Lf = M of this patch
+            al  = poly_weights(P, rp, rr, K.basis) / sc;
         end
         Ii = [Ii; k*ones(numel(J),1)]; Jj = [Jj; J]; Vv = [Vv; w(q)*al]; %#ok<AGROW>
     end
     Ic{k} = Ii; Jc{k} = Jj; Vc{k} = Vv;
 end
 Ii = vertcat(Ic{:}); Jj = vertcat(Jc{:}); Vv = vertcat(Vc{:});
+end
+
+function al = poly_weights(P, rp, d, basis)
+% Polynomial-only weights (n > Q): exact on the polynomials, P' al = rp.
+%   'ls'  : al = P (P'P)^-1 rp            (unweighted least squares, minimal 2-norm)
+%   'gmls': al = Th P (P' Th P)^-1 rp      (weighted least squares = GMLS),
+%           Th = diag(theta_j), theta_j = Wendland C2 of d_j / (1.5 max d),
+%           d_j = distance from the row point x to node j (weights centred at x).
+if strcmp(basis, 'ls')
+    th = ones(size(d));
+else
+    rho = d / (1.5*max(d));
+    th  = max(1 - rho, 0).^4 .* (4*rho + 1);
+end
+s = sqrt(th);
+[Qm, Rm] = qr(s .* P, 0);
+al = s .* (Qm * (Rm' \ rp(:)));
 end
