@@ -16,7 +16,7 @@ function out = PHS_drbfpu_TP2(m, beta, deg, nloc, do_sigma, ntype, basis)
 %  ntype    : node type, 'uniform' (default, grid as in the paper) or 'halton'
 %  basis    : local approximation, 'phs' (default, PHS + polynomials),
 %             'ls' (polynomials only, unweighted least squares) or
-%             'wls' (polynomials only, weighted least squares = GMLS,
+%             'gmls' (polynomials only, weighted least squares = GMLS,
 %             Wendland weight centred at the row point, support 1.5 x max distance)
 %
 %  Unknowns: u+ at X+ = [Xint+; Xbd+; XG] and u- at X- = [Xint-; Xbd-; XG]
@@ -36,7 +36,7 @@ if nargin < 5, do_sigma = true; end
 if nargin < 6 || isempty(ntype), ntype = 'uniform'; end
 if nargin < 7 || isempty(basis), basis = 'phs'; end
 basis = lower(basis);
-if ~ismember(basis, {'phs','ls','wls'}), error('basis must be ''phs'', ''ls'' or ''wls''.'); end
+if ~ismember(basis, {'phs','ls','gmls'}), error('basis must be ''phs'', ''ls'' or ''gmls''.'); end
 if strcmp(basis, 'phs')
     if mod(beta, 2) ~= 1, error('beta must be odd.'); end
     if deg < ceil(beta/2) - 1, error('Need deg >= ceil(beta/2)-1.'); end
@@ -223,7 +223,7 @@ end
 function al = poly_weights(P, rp, d, basis)
 % Polynomial-only weights (n > Q): exact on the polynomials, P' al = rp.
 %   'ls'  : al = P (P'P)^-1 rp            (unweighted least squares, minimal 2-norm)
-%   'wls' : al = Th P (P' Th P)^-1 rp      (weighted least squares = GMLS),
+%   'gmls': al = Th P (P' Th P)^-1 rp      (weighted least squares = GMLS),
 %           Th = diag(theta_j), theta_j = Wendland C2 of d_j / (1.5 max d),
 %           d_j = distance from the row point x to node j (weights centred at x).
 if strcmp(basis, 'ls')

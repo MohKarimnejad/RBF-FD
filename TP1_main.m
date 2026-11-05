@@ -3,9 +3,9 @@ clc; clear; close all
 %  Errors as in the paper: rms and max over the interior nodes X_int;
 %  sigma = condest(A')/norm(A,inf) as in (3.2).
 
-solver = 'FD';           % solver: 'PU' (D-RBF-PU) or 'FD' (RBF-FD)
+solver = 'FD';           % solver: 'PU' (direct PU) or 'FD' (finite differences)
 basis  = 'phs';          % local basis: 'phs' (PHS + polynomials), 'ls' (polynomials, least squares)
-                         %              or 'wls' (polynomials, weighted least squares = GMLS)
+                         %              or 'gmls' (polynomials, weighted least squares = GMLS)
 beta   = 5;              % PHS exponent, phi(r) = r^beta
 deg    = 4;              % polynomial degree  (pQR order q = deg + 1)
 Q      = (deg+1)*(deg+2)/2;
@@ -16,13 +16,17 @@ msigma = 4;              % compute sigma only up to this level (extra LU, memory
 mplot  = [3,4,5];        % level used for the solution / error surfaces
 
 switch upper(solver)
-    case 'PU', solve = @PHS_drbfpu_TP1; sname = 'D-RBF-PU';
-    case 'FD', solve = @PHS_fd_TP1;     sname = 'RBF-FD';
+    case 'PU', solve = @PHS_drbfpu_TP1; sname = 'D-PU';
+    case 'FD', solve = @PHS_fd_TP1;     sname = 'FD';
     otherwise, error('solver must be ''PU'' or ''FD''.');
 end
 sname = sprintf('%s [%s]', sname, basis);
 
-fprintf('%s, PHS r^%d, degree %d (Q = %d), nloc = %d, %s nodes\n', sname, beta, deg, Q, nloc, ntype);
+if any(strcmp(basis, {'gmls', 'ls'}))       % polynomial-only: no PHS exponent
+    fprintf('%s, degree %d (Q = %d), nloc = %d, %s nodes\n', sname, deg, Q, nloc, ntype);
+else
+    fprintf('%s, PHS r^%d, degree %d (Q = %d), nloc = %d, %s nodes\n', sname, beta, deg, Q, nloc, ntype);
+end
 fprintf('%3s %8s %7s %10s %10s %10s %8s %9s %8s\n', 'm', 'h', 'Nint', 'rms', 'max', ...
     'sigma', 'nnz/row', 'min nloc', 'time[s]');
 res = nan(numel(mlist), 4);
