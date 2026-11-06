@@ -59,7 +59,7 @@ grid on; xlabel('N_{int}'); ylabel('rms error')
 legend(sname, 'h^2', 'h^4', 'Location', 'southwest')
 title(sprintf('%s, Test Problem 2, PHS r^%d, degree %d, nloc = %d', sname, beta, deg, nloc))
 
-%% Numerical solution and absolute error (as in Fig. 11 of the paper: -u is plotted)
+%% Numerical solution and relative error (as in Fig. 11 of the paper: -u is plotted)
 for m = mplot
     o   = op{m+1};
     tri = delaunay(o.Xall(:,1), o.Xall(:,2));
@@ -68,8 +68,8 @@ for m = mplot
     trisurf(tri, o.Xall(:,1), o.Xall(:,2), -o.uall, 'EdgeColor', 'none')
     title('Numerical solution (-u)'); view(-37.5, 30); axis tight
     subplot(1,3,2)
-    trisurf(tri, o.Xall(:,1), o.Xall(:,2), o.eall, 'EdgeColor', 'none')
-    title('Absolute error'); view(-37.5, 30); axis tight
+    trisurf(tri, o.Xall(:,1), o.Xall(:,2), o.erel, 'EdgeColor', 'none')
+    title('Relative error |e|/max|u| (per side)'); view(-37.5, 30); axis tight
     subplot(1,3,3)
     scatter(o.Xgrowth(:,1), o.Xgrowth(:,2), 6, log10(o.growth), 'filled')
     axis equal tight; box on; colorbar
