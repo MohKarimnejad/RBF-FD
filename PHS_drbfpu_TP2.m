@@ -144,6 +144,15 @@ dij = sqrt(sum((Xu(ci,:) - Xr(ri,:)).^2, 2));
 out.growth  = accumarray(ri, abs(vi) ./ alr(ri) .* dij.^deg, [nL, 1]);
 out.Xgrowth = Xr;
 
+%% Laplacian weights and exact data (for comparing weights of different methods)
+%  Lw(i,:) = weights of Lap u at interior node Xr(i,:) over all unknowns Xu,
+%  i.e. the global row divided by -alpha; tau = Lw*uex - lapu.
+out.Lw   = spdiags(-1./alr, 0, nL, nL) * A(1:nL, :);
+out.Xu   = Xu;
+out.Xr   = Xr;
+out.uex  = [up(Xp(:,1), Xp(:,2)); um(Xm(:,1), Xm(:,2))];
+out.lapu = -f(Xr(:,1), Xr(:,2)) ./ alr;
+
 %% Solution and absolute error at all nodes (for plots, as Fig. 9 of the paper)
 %  Interface nodes appear once: value u+, error max(|u+ - u|, |u- - u|).
 uep = up(Xp(:,1), Xp(:,2)); uem = um(Xm(:,1), Xm(:,2));
