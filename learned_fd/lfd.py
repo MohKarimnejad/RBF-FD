@@ -163,10 +163,11 @@ def derivatives(u, X):
     val = u(X)
     (g,) = torch.autograd.grad(val.sum(), X, create_graph=True)
     lap = torch.zeros(X.shape[0])
-    for d in range(2):
-        (h,) = torch.autograd.grad(g[:, d].sum(), X, retain_graph=True, allow_unused=True)
-        if h is not None:
-            lap = lap + h[:, d]
+    if g.requires_grad:                            # otherwise grad u is constant: Lap u = 0
+        for d in range(2):
+            (h,) = torch.autograd.grad(g[:, d].sum(), X, retain_graph=True, allow_unused=True)
+            if h is not None:
+                lap = lap + h[:, d]
     return val.detach(), g.detach(), lap.detach()
 
 
