@@ -4,8 +4,10 @@ clc; clear; close all
 %  Errors as in the paper: rms and max over the interior nodes X_int;
 %  sigma = condest(A')/norm(A,inf) as in (3.2).
 
-method = 'mls-vsdk';     % 'mls' (stencils of the own side, Matern weight) or
-                         % 'mls-vsdk' (crossing Gamma, variably scaled discontinuous Matern weight)
+method = 'mls-vsk';      % 'mls' (Matern weight) or 'mls-vsk' (variably scaled Matern weight,
+                         % scale function psi = lam * signed distance to Gamma);
+                         % stencils of the own side only in both cases
+lam    = 1;              % amplitude of the scale function (mls-vsk only)
 deg    = 6;              % polynomial degree of the GMLS fit
 Q      = (deg+1)*(deg+2)/2;
 nloc   = 3*Q;            % stencil size
@@ -18,15 +20,15 @@ mplot  = [3,4,5];        % levels used for the solution / error surfaces
 
 sname = sprintf('FD [%s]', method);
 
-fprintf('%s, Matern %.1f, ep = %g, degree %d (Q = %d), nloc = %d, %s nodes\n', ...
-    sname, nu, ep, deg, Q, nloc, ntype);
+fprintf('%s, Matern %.1f, ep = %g, lam = %g, degree %d (Q = %d), nloc = %d, %s nodes\n', ...
+    sname, nu, ep, lam, deg, Q, nloc, ntype);
 fprintf('%3s %8s %7s %10s %10s %10s %8s %9s %8s\n', 'm', 'h', 'Nint', 'rms', 'max', ...
     'sigma', 'nnz/row', 'min nloc', 'time[s]');
 res = nan(numel(mlist), 4);
 for k = 1:numel(mlist)
     m = mlist(k);
     try
-        o = FD_2(m, deg, nloc, ep, nu, method, m <= msigma, ntype);
+        o = FD_2(m, deg, nloc, ep, nu, method, lam, m <= msigma, ntype);
     catch err
         fprintf('%3d  failed: %s\n', m, err.message); continue
     end
