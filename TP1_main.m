@@ -1,15 +1,14 @@
 clc; clear; close all
-%% Test Problem 1 of Davydov & Safarpoor (2021): GMLS finite differences (FD_1) or
-%  direct PU with local GMLS fits (PU_1), with the MLS or the MLS-VSDK weight.
+%% Test Problem 1 of Davydov & Safarpoor (2021): GMLS finite differences (FD_1)
+%  with the MLS or the MLS-VSDK weight.
 %  Errors as in the paper: rms and max over the interior nodes X_int;
 %  sigma = condest(A')/norm(A,inf) as in (3.2).
 
-solver = 'FD';           % solver: 'FD' (FD_1) or 'PU' (PU_1)
-method = 'mls-vsdk';     % 'mls' (stencils/patches of the own side, Matern weight) or
+method = 'mls-vsdk';     % 'mls' (stencils of the own side, Matern weight) or
                          % 'mls-vsdk' (crossing Gamma, variably scaled discontinuous Matern weight)
 deg    = 4;              % polynomial degree of the GMLS fit
 Q      = (deg+1)*(deg+2)/2;
-nloc   = 3*Q;            % stencil size (FD) / nodes per patch (PU)
+nloc   = 3*Q;            % stencil size
 ep     = 1;              % shape parameter of the Matern weight
 nu     = 2.5;            % Matern order: 0.5, 1.5 or 2.5
 ntype  = 'uniform';      % node type: 'uniform' (grid, as in the paper) or 'halton'
@@ -17,12 +16,7 @@ mlist  = 0:5;            % node levels X^(m), h = 0.4/2^m
 msigma = 4;              % compute sigma only up to this level (extra LU, memory)
 mplot  = [3,4,5];        % levels used for the solution / error surfaces
 
-switch upper(solver)
-    case 'FD', solve = @FD_1;
-    case 'PU', solve = @PU_1;
-    otherwise, error('solver must be ''FD'' or ''PU''.');
-end
-sname = sprintf('%s [%s]', upper(solver), method);
+sname = sprintf('FD [%s]', method);
 
 fprintf('%s, Matern %.1f, ep = %g, degree %d (Q = %d), nloc = %d, %s nodes\n', ...
     sname, nu, ep, deg, Q, nloc, ntype);
@@ -32,7 +26,7 @@ res = nan(numel(mlist), 4);
 for k = 1:numel(mlist)
     m = mlist(k);
     try
-        o = solve(m, deg, nloc, ep, nu, method, m <= msigma, ntype);
+        o = FD_1(m, deg, nloc, ep, nu, method, m <= msigma, ntype);
     catch err
         fprintf('%3d  failed: %s\n', m, err.message); continue
     end
