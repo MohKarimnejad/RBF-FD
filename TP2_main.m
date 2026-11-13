@@ -1,6 +1,6 @@
 clc; clear; close all
 %% Test Problem 2 of Davydov & Safarpoor (2021): GMLS finite differences (FD_2)
-%  with the MLS or the MLS-VSDK weight.
+%  with the MLS or the MLS-VSK weight.
 %  Errors as in the paper: rms and max over the interior nodes X_int;
 %  sigma = condest(A')/norm(A,inf) as in (3.2).
 
