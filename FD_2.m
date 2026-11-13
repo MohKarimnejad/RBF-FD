@@ -1,4 +1,4 @@
-function out = FD_2(m, deg, nloc, ep, nu, method, lam, delta, do_sigma, ntype)
+function out = FD_2(m, deg, nloc, ep, nu, method, lam, do_sigma, ntype)
 %FD_2  GMLS finite differences for Test Problem 2 of Davydov & Safarpoor (2021):
 %
 %    -div(alpha grad u) = f  in Omega = (-1,1)^2,   u = g on dOmega,
@@ -15,12 +15,9 @@ function out = FD_2(m, deg, nloc, ep, nu, method, lam, delta, do_sigma, ntype)
 %  method   : 'mls'      : weight theta_j = Matern(ep * ||x_hat - y_hat_j||)
 %             'mls-vsk'  : weight theta_j = Matern(ep * d_psi(x, y_j)),
 %                          d_psi^2 = ||x_hat - y_hat_j||^2 + ((psi(x) - psi(y_j))/r)^2,
-%                          scale function psi = lam * dh * tanh(gamma / dh), dh = delta * h,
-%                          gamma = signed distance to Gamma (psi ~ lam * gamma in a band of
-%                          width ~ dh around Gamma, constant +-lam*dh away from it)
+%                          scale function psi = lam * gamma, gamma = signed distance to Gamma
 %             In both cases the stencils use the nodes of the own side only (as in the paper).
 %  lam      : amplitude of the scale function (mls-vsk only)
-%  delta    : width of the band around Gamma in units of h (mls-vsk only)
 %  do_sigma : compute the stability constant sigma (default true; extra LU)
 %  ntype    : node type, 'uniform' (default, grid as in the paper) or 'halton'
 %
@@ -42,9 +39,8 @@ Q = (deg + 1)*(deg + 2)/2;
 if nargin < 3 || isempty(nloc), nloc = 3*Q; end
 if nargin < 6 || isempty(method), method = 'mls'; end
 if nargin < 7 || isempty(lam), lam = 1; end
-if nargin < 8 || isempty(delta), delta = 2; end
-if nargin < 9, do_sigma = true; end
-if nargin < 10 || isempty(ntype), ntype = 'uniform'; end
+if nargin < 8, do_sigma = true; end
+if nargin < 9 || isempty(ntype), ntype = 'uniform'; end
 method = lower(method);
 if ~ismember(method, {'mls','mls-vsk'}), error('method must be ''mls'' or ''mls-vsk''.'); end
 if ~ismember(nu, [0.5 1.5 2.5]), error('nu must be 0.5, 1.5 or 2.5.'); end
@@ -79,8 +75,7 @@ side = [ones(nIp+nBp,1); -ones(nIm+nBm,1); zeros(nG,1)];
 cpm  = [(1:nIp+nBp)'; Np + (1:nIm+nBm)'];
 col  = {[cpm; iGp(:)], [cpm; Np + iGm(:)]};
 cand = {find(side >= 0), find(side <= 0)};
-dh   = delta * h;
-psia = lam * dh * tanh(gam(Xa(:,1), Xa(:,2)) / dh);    % scale function at all nodes
+psia = lam * gam(Xa(:,1), Xa(:,2));                     % scale function at all nodes
 
 %% Polynomial basis and weight
 ea = []; eb = [];                                 % monomials x^a y^b, a+b <= deg

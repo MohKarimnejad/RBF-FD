@@ -5,32 +5,30 @@ clc; clear; close all
 %  sigma = condest(A')/norm(A,inf) as in (3.2).
 
 method = 'mls-vsk';      % 'mls' (Matern weight) or 'mls-vsk' (variably scaled Matern weight,
-                         % scale function psi = lam*dh*tanh(gamma/dh), dh = delta*h,
-                         % gamma = signed distance to Gamma);
+                         % scale function psi = lam * signed distance to Gamma);
                          % stencils of the own side only in both cases
 lam    = 1;              % amplitude of the scale function (mls-vsk only)
-delta  = 2;              % width of the band around Gamma in units of h (mls-vsk only)
 deg    = 6;              % polynomial degree of the GMLS fit
 Q      = (deg+1)*(deg+2)/2;
 nloc   = 3*Q;            % stencil size
 ep     = 1;              % shape parameter of the Matern weight
 nu     = 2.5;            % Matern order: 0.5, 1.5 or 2.5
 ntype  = 'uniform';      % node type: 'uniform' (grid, as in the paper) or 'halton'
-mlist  = 0:4;            % node levels X^(m), h ~ 0.15/2^m
-msigma = 4;              % compute sigma only up to this level (extra LU, memory)
-mplot  = [2,3,4];        % levels used for the solution / error surfaces
+mlist  = 0:5;            % node levels X^(m), h ~ 0.15/2^m
+msigma = 3;              % compute sigma only up to this level (extra LU, memory)
+mplot  = [3,4,5];        % levels used for the solution / error surfaces
 
 sname = sprintf('FD [%s]', method);
 
-fprintf('%s, Matern %.1f, ep = %g, lam = %g, delta = %g, degree %d (Q = %d), nloc = %d, %s nodes\n', ...
-    sname, nu, ep, lam, delta, deg, Q, nloc, ntype);
+fprintf('%s, Matern %.1f, ep = %g, lam = %g, degree %d (Q = %d), nloc = %d, %s nodes\n', ...
+    sname, nu, ep, lam, deg, Q, nloc, ntype);
 fprintf('%3s %8s %7s %10s %10s %10s %8s %9s %8s\n', 'm', 'h', 'Nint', 'rms', 'max', ...
     'sigma', 'nnz/row', 'min nloc', 'time[s]');
 res = nan(numel(mlist), 4);
 for k = 1:numel(mlist)
     m = mlist(k);
     try
-        o = FD_2(m, deg, nloc, ep, nu, method, lam, delta, m <= msigma, ntype);
+        o = FD_2(m, deg, nloc, ep, nu, method, lam, m <= msigma, ntype);
     catch err
         fprintf('%3d  failed: %s\n', m, err.message); continue
     end
