@@ -1,7 +1,5 @@
-function out = PHS_fd_TP1_vsdk(m, deg, nloc, ep, nu, do_sigma, ntype)
-%PHS_FD_TP1_VSDK  GMLS finite differences with a variably scaled discontinuous
-%  (Matern) weight and stencils that cross the interface, for
-%  Test Problem 1 of Davydov & Safarpoor (2021):
+function out = FD_1(m, deg, nloc, ep, nu, method, do_sigma, ntype)
+%FD_1  GMLS finite differences for Test Problem 1 of Davydov & Safarpoor (2021):
 %
 %    -div(alpha grad u) = f  in Omega = (-1,1)^2,   u = g on dOmega,
 %    [u] = phi,  [alpha du/dn] = psi  on Gamma: y = 2x^3,
@@ -9,36 +7,38 @@ function out = PHS_fd_TP1_vsdk(m, deg, nloc, ep, nu, do_sigma, ntype)
 %
 %  m        : node level, h = 0.4/2^m (nodes from nodes_TP1)
 %  deg      : polynomial degree of the GMLS fit (exact on P_deg)
-%  nloc     : stencil size = number of nearest nodes of BOTH sides (default 3*Q)
+%  nloc     : stencil size = number of nearest nodes (default 3*Q)
 %  ep       : shape parameter of the Matern weight
-%  nu       : Matern smoothness, 0.5, 1.5 or 2.5
+%  nu       : Matern order, 0.5, 1.5 or 2.5
+%  method   : 'mls'      : stencils of the own side only (do not cross Gamma),
+%                          weight theta_j = Matern(ep * ||x_hat - y_hat_j||)
+%             'mls-vsdk' : stencils from both sides (cross Gamma),
+%                          weight theta_j = Matern(ep * d_psi(x, y_j)),
+%                          d_psi^2 = ||x_hat - y_hat_j||^2 + (psi(x) - psi(y_j))^2
 %  do_sigma : compute the stability constant sigma (default true; extra LU)
 %  ntype    : node type, 'uniform' (default, grid as in the paper) or 'halton'
 %
-%  Unknowns and equations: as in PHS_fd_TP1 (Davydov & Safarpoor):
-%  u+ at X+ = [Xint+; Xbd+; XG] and u- at X- = [Xint-; Xbd-; XG],
+%  Unknowns (as in the paper): u+ at X+ = [Xint+; Xbd+; XG], u- at X- = [Xint-; Xbd-; XG].
+%  Equations:
 %    -alpha+ Lap u+ = f   at Xint+
 %    -alpha- Lap u- = f   at Xint-
 %     u = g               at Xbd+, Xbd-
 %     u+ - u- = phi       at XG
 %     alpha+ dn u+ - alpha- dn u- = psi at XG
-%
-%  Stencils: for a row approximating u^s (s = + or -) at x, the nloc nearest nodes of
-%  Xint+ u Xbd+ u Xint- u Xbd- u XG (they cross Gamma). A node of Omega+ enters with
-%  its unknown u+, a node of Omega- with u-, an interface node with u^s.
-%
-%  Weights: GMLS, al = Th P (P' Th P)^-1 L p(x), exact on P_deg, with
-%    theta_j = Matern_nu(ep * d_psi(x, x_j)),
-%    d_psi^2 = ||x_hat - y_hat_j||^2 + (psi(x) - psi(x_j))^2,
-%  in scaled coordinates y_hat = (y - x)/r (r = stencil radius), scale function
-%    psi = 1 on Omega+, psi = 0 on Omega-,
-%  and, for the row point and the interface nodes, psi = psi^s (1 for u+, 0 for u-):
-%  nodes of the side being approximated get the larger weights.
+%  A row approximating u^s (s = + or -) at x uses one GMLS fit on its stencil:
+%    al = Th P (P' Th P)^-1 L p(x),  Th = diag(theta_j),
+%  in scaled coordinates y_hat = (y - x)/r (r = stencil radius).
+%  A node of Omega+ enters with u+, a node of Omega- with u-, an interface node with u^s.
+%  Scale function (mls-vsdk): psi = 1 on Omega+, 0 on Omega-; psi = psi^s (1 for u+,
+%  0 for u-) at the row point and at the interface nodes.
 
 Q = (deg + 1)*(deg + 2)/2;
 if nargin < 3 || isempty(nloc), nloc = 3*Q; end
-if nargin < 6, do_sigma = true; end
-if nargin < 7 || isempty(ntype), ntype = 'uniform'; end
+if nargin < 6 || isempty(method), method = 'mls'; end
+if nargin < 7, do_sigma = true; end
+if nargin < 8 || isempty(ntype), ntype = 'uniform'; end
+method = lower(method);
+if ~ismember(method, {'mls','mls-vsdk'}), error('method must be ''mls'' or ''mls-vsdk''.'); end
 if ~ismember(nu, [0.5 1.5 2.5]), error('nu must be 0.5, 1.5 or 2.5.'); end
 
 %% Exact solution and data
@@ -62,32 +62,38 @@ Np  = size(Xp,1);  Nm = size(Xm,1);  Ntot = Np + Nm;
 iGp = nIp + nBp + (1:nG);            % interface nodes in X+ (local)
 iGm = nIm + nBm + (1:nG);            % interface nodes in X- (local)
 
-%% All distinct nodes (each interface node once), their side and their columns
+%% All distinct nodes (each interface node once): side, columns, candidate stencil nodes
 %  side: +1 (Omega+), -1 (Omega-), 0 (Gamma)
-%  colp / colm: column of the unknown used in a stencil for u+ / u-
+%  col{1} / col{2}: column of the unknown used in a row for u+ / u-
 Xa   = [Xp(1:nIp+nBp,:); Xm(1:nIm+nBm,:); nd.XG];
 side = [ones(nIp+nBp,1); -ones(nIm+nBm,1); zeros(nG,1)];
 cpm  = [(1:nIp+nBp)'; Np + (1:nIm+nBm)'];
-colp = [cpm; iGp(:)];
-colm = [cpm; Np + iGm(:)];
+col  = {[cpm; iGp(:)], [cpm; Np + iGm(:)]};
+if strcmp(method, 'mls')
+    cand = {find(side >= 0), find(side <= 0)};          % own side + interface
+else
+    cand = {(1:size(Xa,1))', (1:size(Xa,1))'};          % both sides
+end
+psis = [1, 0];                                          % psi^s for u+ / u-
 
 %% Polynomial basis and weight
 ea = []; eb = [];                                 % monomials x^a y^b, a+b <= deg
 for tt = 0:deg, for bb = 0:tt, ea(end+1) = tt-bb; eb(end+1) = bb; end, end %#ok<AGROW>
-K.ea = ea; K.eb = eb; K.Q = Q; K.ep = ep; K.nu = nu;
+K.ea = ea; K.eb = eb; K.Q = Q; K.ep = ep; K.nu = nu; K.vsdk = strcmp(method, 'mls-vsdk');
 
 tic
-ns = min(nloc, size(Xa,1));                       % stencil size
+ns = [min(nloc, numel(cand{1})), min(nloc, numel(cand{2}))];   % stencil size per side
 
 %% Assemble the global system  A u = b
 I = {}; J = {}; V = {}; b = zeros(Ntot, 1); row = 0;
+xg  = nd.XG;  nG_ = nrm(xg(:,1));
 
 % PDE rows, side +
-[Ii, Jj, Vv] = vsdk_rows(Xa, side, colp, Xp(1:nIp,:), 1, 'lap', [], K, ns);
+[Ii, Jj, Vv] = fd_rows(Xa, side, cand{1}, col{1}, Xp(1:nIp,:), psis(1), 'lap', [], K, ns(1));
 I{end+1} = row + Ii; J{end+1} = Jj; V{end+1} = -ap*Vv;
 b(row + (1:nIp)) = f(Xp(1:nIp,1), Xp(1:nIp,2)); row = row + nIp;
 % PDE rows, side -
-[Ii, Jj, Vv] = vsdk_rows(Xa, side, colm, Xm(1:nIm,:), 0, 'lap', [], K, ns);
+[Ii, Jj, Vv] = fd_rows(Xa, side, cand{2}, col{2}, Xm(1:nIm,:), psis(2), 'lap', [], K, ns(2));
 I{end+1} = row + Ii; J{end+1} = Jj; V{end+1} = -am*Vv;
 b(row + (1:nIm)) = f(Xm(1:nIm,1), Xm(1:nIm,2)); row = row + nIm;
 % Dirichlet rows on dOmega
@@ -98,15 +104,13 @@ k = nIm + (1:nBm)';
 I{end+1} = row + (1:nBm)'; J{end+1} = Np + k; V{end+1} = ones(nBm,1);
 b(row + (1:nBm)) = um(Xm(k,1), Xm(k,2)); row = row + nBm;
 % Jump [u] = u+ - u- = phi on Gamma
-xg = nd.XG;
 I{end+1} = row + [(1:nG)'; (1:nG)']; J{end+1} = [iGp(:); Np + iGm(:)];
 V{end+1} = [ones(nG,1); -ones(nG,1)];
 b(row + (1:nG)) = up(xg(:,1), xg(:,2)) - um(xg(:,1), xg(:,2)); row = row + nG;
 % Flux jump [alpha du/dn] = alpha+ dn u+ - alpha- dn u- = psi on Gamma
-nG_ = nrm(xg(:,1));
-[Ii, Jj, Vv] = vsdk_rows(Xa, side, colp, xg, 1, 'dn', nG_, K, ns);
+[Ii, Jj, Vv] = fd_rows(Xa, side, cand{1}, col{1}, xg, psis(1), 'dn', nG_, K, ns(1));
 I{end+1} = row + Ii; J{end+1} = Jj; V{end+1} =  ap*Vv;
-[Ii, Jj, Vv] = vsdk_rows(Xa, side, colm, xg, 0, 'dn', nG_, K, ns);
+[Ii, Jj, Vv] = fd_rows(Xa, side, cand{2}, col{2}, xg, psis(2), 'dn', nG_, K, ns(2));
 I{end+1} = row + Ii; J{end+1} = Jj; V{end+1} = -am*Vv;
 gq = gradq(xg(:,1), xg(:,2));
 b(row + (1:nG)) = ap*sum((gq/20) .* nG_, 2) - am*sum(gq .* nG_, 2);   % psi (exact, = 0)
@@ -121,7 +125,7 @@ ue = [up(Xp(1:nIp,1), Xp(1:nIp,2)); um(Xm(1:nIm,1), Xm(1:nIm,2))];
 uh = [u(1:nIp); u(Np + (1:nIm))];
 e  = abs(uh - ue);
 out.h = h; out.Nint = nd.Nint; out.Q = Q; out.nloc = nloc;
-out.nlocal = ns;                                              % stencil size
+out.nlocal = ns(:);                                           % stencil size per side
 out.rms = sqrt(mean(e.^2)); out.max = max(e);
 if do_sigma
     out.sigma = condest(A') / norm(A, inf);              % stability constant (3.2)
@@ -160,17 +164,19 @@ out.erel = [ep_(1:nIp)/sp; em_(1:nIm)/sm; ep_(iBp)/sp; em_(iBm)/sm; ...
 end
 
 % ============================================================================
-function [Ii, Jj, Vv] = vsdk_rows(Xa, side, col, Xrows, psis, type, nvec, K, n)
+function [Ii, Jj, Vv] = fd_rows(Xa, side, cand, col, Xrows, psis, type, nvec, K, n)
 % GMLS rows approximating u^s at the row points Xrows (psis = psi^s: 1 for u+, 0 for u-).
-% Stencil = the n nearest nodes of Xa (both sides), scaled coordinates Yh = (y - x)/r
-% (r = stencil radius), so x_hat = 0. Weight theta_j = Matern(ep * d_psi), with
-%   d_psi^2 = ||Yh_j||^2 + (psis - psi_j)^2,
-%   psi_j = 1 (Omega+), 0 (Omega-), psis (interface node).
+% Stencil = the n nearest nodes of Xa(cand,:); scaled coordinates Yh = (y - x)/r
+% (r = stencil radius), so x_hat = 0. Weight theta_j = Matern(ep * d_j),
+%   mls      : d_j = ||Yh_j||
+%   mls-vsdk : d_j^2 = ||Yh_j||^2 + (psis - psi_j)^2,  psi_j = 1 (Omega+), 0 (Omega-),
+%              psis (interface node).
 % Rows: w = al / r^2 (Laplacian) or al / r (normal derivative); columns col(J).
 ea = K.ea; eb = K.eb; Q = K.Q;
 Lp0 = zeros(Q,1); Lp0(ea==2 & eb==0) = 2; Lp0(ea==0 & eb==2) = 2;   % Lap p at 0
 psia = double(side > 0);  psia(side == 0) = psis;                     % psi at all nodes
-idx = knnsearch(Xa, Xrows, 'K', n);              % n nearest nodes (incl. x itself)
+idx = cand(knnsearch(Xa(cand,:), Xrows, 'K', n));                     % n nearest candidates
+if size(Xrows,1) == 1, idx = idx(:)'; end
 Ic = cell(size(Xrows,1),1); Jc = Ic; Vc = Ic;
 for k = 1:size(Xrows,1)
     x  = Xrows(k,:);
@@ -186,14 +192,20 @@ for k = 1:size(Xrows,1)
         rp = zeros(Q,1); rp(ea==1 & eb==0) = nn(1); rp(ea==0 & eb==1) = nn(2);
         sc = r;
     end
-    dpsi = sqrt(Yh(:,1).^2 + Yh(:,2).^2 + (psis - psia(Js)).^2);
-    th   = matern(K.ep * dpsi, K.nu);
-    sq   = sqrt(th);
-    [Qm, Rm] = qr(sq .* P, 0);
-    al   = sq .* (Qm * (Rm' \ rp));
+    d2 = Yh(:,1).^2 + Yh(:,2).^2;
+    if K.vsdk, d2 = d2 + (psis - psia(Js)).^2; end
+    al = gmls_weights(P, rp, matern(K.ep * sqrt(d2), K.nu));
     Ic{k} = k*ones(n,1); Jc{k} = col(Js); Vc{k} = al / sc;
 end
 Ii = vertcat(Ic{:}); Jj = vertcat(Jc{:}); Vv = vertcat(Vc{:});
+end
+
+function al = gmls_weights(P, rp, th)
+% GMLS weights: exact on the polynomials, P' al = rp, minimal weighted 2-norm:
+%   al = Th P (P' Th P)^-1 rp,  Th = diag(th). Computed by QR of sqrt(Th) P.
+sq = sqrt(th);
+[Qm, Rm] = qr(sq .* P, 0);
+al = sq .* (Qm * (Rm' \ rp(:)));
 end
 
 function th = matern(t, nu)
