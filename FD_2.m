@@ -136,17 +136,30 @@ end
 out.nnz_row = nnz(A) / Ntot;
 out.time = t;
 
-%% Growth function of the Laplacian rows (Davydov-Schaback), exponent q = deg:
-%  rho_i = sum_j |w_ij| * ||x_j - x_i||^deg,  w = Laplacian weights of row i
-%  (the global row divided by -alpha), one value per interior node.
-nL = nIp + nIm;
+%% Consistency factor of each stencil (Davydov & Safarpoor, eq. (2.9)), with the
+%  polynomial order q = deg + 1 (exactness on polynomials of degree < q):
+%    rho_i = sum_j |w_ij| * ||x_j - x_i||^q.
+%  Laplacian rows: w = global row divided by -alpha, one value per interior node;
+%  O(h^(q-2)) for good stencils (eq. (2.10)).
+q   = deg + 1;
+nL  = nIp + nIm;
 [ri, ci, vi] = find(A(1:nL, :));
 Xu  = [Xp; Xm];
 Xr  = [Xp(1:nIp,:); Xm(1:nIm,:)];
 alr = [ap*ones(nIp,1); am*ones(nIm,1)];
 dij = sqrt(sum((Xu(ci,:) - Xr(ri,:)).^2, 2));
-out.growth  = accumarray(ri, abs(vi) ./ alr(ri) .* dij.^deg, [nL, 1]);
+out.growth  = accumarray(ri, abs(vi) ./ alr(ri) .* dij.^q, [nL, 1]);
 out.Xgrowth = Xr;
+%  Normal-derivative rows at Gamma (the last nG rows of A): the u+ part (columns
+%  1..Np, divided by alpha+) and the u- part (columns Np+1..Ntot, divided by alpha-),
+%  one value per interface node and side; O(h^(q-1)) for good stencils.
+%  growth_dn(:,1) = rho for dn u+,  growth_dn(:,2) = rho for dn u-.
+[ri, ci, vi] = find(A(Ntot-nG+1:Ntot, :));
+dij = sqrt(sum((Xu(ci,:) - xg(ri,:)).^2, 2));
+isp = ci <= Np;
+out.growth_dn = [accumarray(ri(isp),  abs(vi(isp))  / ap .* dij(isp).^q,  [nG, 1]), ...
+                 accumarray(ri(~isp), abs(vi(~isp)) / am .* dij(~isp).^q, [nG, 1])];
+out.XG = xg;
 
 %% Solution and absolute error at all nodes (for plots, as Fig. 9 of the paper)
 %  Interface nodes appear once: value u+, error max(|u+ - u|, |u- - u|).

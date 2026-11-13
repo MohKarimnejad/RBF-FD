@@ -50,16 +50,20 @@ title(sprintf('%s, Test Problem 1, degree %d, nloc = %d', sname, deg, nloc))
 for m = mplot
     o   = op{m+1};
     tri = delaunay(o.Xall(:,1), o.Xall(:,2));
-    figure('Position', [100 100 1500 420])
-    subplot(1,3,1)
+    figure('Position', [100 100 1900 420])
+    subplot(1,4,1)
     trisurf(tri, o.Xall(:,1), o.Xall(:,2), o.uall, 'EdgeColor', 'none')
     title('Numerical solution'); view(-37.5, 30); axis tight
-    subplot(1,3,2)
+    subplot(1,4,2)
     trisurf(tri, o.Xall(:,1), o.Xall(:,2), o.erel, 'EdgeColor', 'none')
     title('Relative error |e|/max|u| (per side)'); view(-37.5, 30); axis tight
-    subplot(1,3,3)
+    subplot(1,4,3)
     scatter(o.Xgrowth(:,1), o.Xgrowth(:,2), 6, log10(o.growth), 'filled')
     axis equal tight; box on; colorbar
-    title(sprintf('log_{10} growth function (q = %d)', deg))
+    title(sprintf('log_{10} \\rho, Laplacian rows (q = %d)', deg+1))
+    subplot(1,4,4)
+    scatter(o.XG(:,1), o.XG(:,2), 12, log10(max(o.growth_dn, [], 2)), 'filled')
+    axis equal; xlim([-1 1]); ylim([-1 1]); box on; colorbar
+    title(sprintf('log_{10} max(\\rho_+, \\rho_-), normal-derivative rows (q = %d)', deg+1))
     sgtitle(sprintf('Test problem 1, %s, %s nodes, level %d, poly degree %d', sname, ntype, m, deg))
 end
