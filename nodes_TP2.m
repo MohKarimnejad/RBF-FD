@@ -1,4 +1,4 @@
-function nd = nodes_TP2(m, ntype)
+function nd = nodes_TP2(m, ntype, itype)
 %NODES_TP2  Node set X^(m) for Test Problem 2 of Davydov & Safarpoor (2021):
 %    Omega = (-1,1)^2,  Gamma: circle of radius 1/2 centred at the origin,
 %    Omega+ : r < 1/2 (inside),  Omega- : r > 1/2 (outside).
@@ -9,9 +9,12 @@ function nd = nodes_TP2(m, ntype)
 %     boundary nodes come from the same grid.
 %   - Interior nodes: grid points inside Omega+ or Omega- with |r - 1/2| >= a*h
 %     (a = 0.25); for the circle, r - 1/2 is the exact signed distance.
-%   - Interface nodes (projection method): for every node of X+_int at distance
-%     at most h from Gamma, its nearest point on Gamma; then thinned so that all
-%     interface nodes are at least 0.5h apart.
+%   - Interface nodes, itype = 'projection' (default, as in the paper for this
+%     problem): for every node of X+_int at distance at most h from Gamma, its
+%     nearest point on Gamma; itype = 'contour' (isosurface method of the paper):
+%     vertices of the zero contour of r - 1/2 on the grid (MATLAB contourc),
+%     moved onto Gamma along the gradient (radially; exact for the circle).
+%     In both cases thinned so that all interface nodes are at least 0.5h apart.
 %
 %  ntype = 'uniform' (default) : interior nodes are the grid points (paper).
 %  ntype = 'halton'            : interior nodes are Halton points in the square
@@ -22,6 +25,7 @@ function nd = nodes_TP2(m, ntype)
 %  Output struct nd: Xint_p, Xint_m, Xbd_p, Xbd_m, XG, h, Nint (as nodes_TP1).
 
 if nargin < 2 || isempty(ntype), ntype = 'uniform'; end
+if nargin < 3 || isempty(itype), itype = 'projection'; end
 a  = 0.25;
 h0 = 0.15 / 2^m;
 n  = round(2/h0);
@@ -50,10 +54,25 @@ nd.Xint_m = Xint(rint > 0.5, :);
 nd.Xbd_p  = zeros(0, 2);                 % dOmega lies entirely in Omega-
 nd.Xbd_m  = G(onB, :);
 
-% Interface nodes: projection of the X+_int nodes within distance h of Gamma
-rp = sqrt(nd.Xint_p(:,1).^2 + nd.Xint_p(:,2).^2);
-P  = nd.Xint_p(0.5 - rp <= h, :);
-XG = 0.5 * P ./ sqrt(P(:,1).^2 + P(:,2).^2);
+% Interface nodes
+switch lower(itype)
+    case 'projection'      % projection of the X+_int nodes within distance h of Gamma
+        rp = sqrt(nd.Xint_p(:,1).^2 + nd.Xint_p(:,2).^2);
+        P  = nd.Xint_p(0.5 - rp <= h, :);
+    case 'contour'         % vertices of the zero contour of r - 1/2 on the grid
+        C = contourc(t, t, sqrt(GX.^2 + GY.^2) - 0.5, [0 0]);
+        P = [];
+        k = 1;
+        while k < size(C, 2)
+            nv = C(2, k);
+            P  = [P; C(:, k+1:k+nv)'];     %#ok<AGROW>
+            k  = k + nv + 1;
+        end
+        P = unique(P, 'rows');
+    otherwise
+        error('itype must be ''projection'' or ''contour''.');
+end
+XG = 0.5 * P ./ sqrt(P(:,1).^2 + P(:,2).^2);   % nearest point on Gamma
 XG = thin_points(XG, 0.5*h);
 
 nd.XG   = XG;

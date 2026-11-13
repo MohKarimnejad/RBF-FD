@@ -1,4 +1,4 @@
-function out = FD_2(m, deg, nloc, ep, nu, method, lam, do_sigma, ntype)
+function out = FD_2(m, deg, nloc, ep, nu, method, lam, do_sigma, ntype, itype)
 %FD_2  GMLS finite differences for Test Problem 2 of Davydov & Safarpoor (2021):
 %
 %    -div(alpha grad u) = f  in Omega = (-1,1)^2,   u = g on dOmega,
@@ -20,6 +20,7 @@ function out = FD_2(m, deg, nloc, ep, nu, method, lam, do_sigma, ntype)
 %  lam      : amplitude of the scale function (mls-vsk only)
 %  do_sigma : compute the stability constant sigma (default true; extra LU)
 %  ntype    : node type, 'uniform' (default, grid as in the paper) or 'halton'
+%  itype    : interface nodes, 'projection' (default, as in the paper) or 'contour'
 %
 %  Unknowns (as in the paper): u+ at X+ = [Xint+; Xbd+; XG], u- at X- = [Xint-; Xbd-; XG].
 %  Equations:
@@ -41,6 +42,7 @@ if nargin < 6 || isempty(method), method = 'mls'; end
 if nargin < 7 || isempty(lam), lam = 1; end
 if nargin < 8, do_sigma = true; end
 if nargin < 9 || isempty(ntype), ntype = 'uniform'; end
+if nargin < 10 || isempty(itype), itype = 'projection'; end
 method = lower(method);
 if ~ismember(method, {'mls','mls-vsk'}), error('method must be ''mls'' or ''mls-vsk''.'); end
 if ~ismember(nu, [0.5 1.5 2.5]), error('nu must be 0.5, 1.5 or 2.5.'); end
@@ -56,7 +58,7 @@ nrm   = @(x,y) [x, y] ./ sqrt(x.^2 + y.^2);                 % outward normal of 
 gam   = @(x,y) sqrt(x.^2 + y.^2) - 0.5;                     % signed distance to Gamma
 
 %% Nodes
-nd = nodes_TP2(m, ntype);
+nd = nodes_TP2(m, ntype, itype);
 h  = nd.h;
 Xp = [nd.Xint_p; nd.Xbd_p; nd.XG];   Xm = [nd.Xint_m; nd.Xbd_m; nd.XG];
 nIp = size(nd.Xint_p,1); nBp = size(nd.Xbd_p,1);

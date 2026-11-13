@@ -14,21 +14,22 @@ nloc   = 3*Q;            % stencil size
 ep     = 1;              % shape parameter of the Matern weight
 nu     = 2.5;            % Matern order: 0.5, 1.5 or 2.5
 ntype  = 'uniform';      % node type: 'uniform' (grid, as in the paper) or 'halton'
+itype  = 'contour';      % interface nodes: 'projection' (as in the paper) or 'contour'
 mlist  = 0:5;            % node levels X^(m), h ~ 0.15/2^m
 msigma = 3;              % compute sigma only up to this level (extra LU, memory)
 mplot  = [3,4,5];        % levels used for the solution / error surfaces
 
 sname = sprintf('FD [%s]', method);
 
-fprintf('%s, Matern %.1f, ep = %g, lam = %g, degree %d (Q = %d), nloc = %d, %s nodes\n', ...
-    sname, nu, ep, lam, deg, Q, nloc, ntype);
+fprintf('%s, Matern %.1f, ep = %g, lam = %g, degree %d (Q = %d), nloc = %d, %s nodes, %s interface nodes\n', ...
+    sname, nu, ep, lam, deg, Q, nloc, ntype, itype);
 fprintf('%3s %8s %7s %10s %10s %10s %8s %9s %8s\n', 'm', 'h', 'Nint', 'rms', 'max', ...
     'sigma', 'nnz/row', 'min nloc', 'time[s]');
 res = nan(numel(mlist), 4);
 for k = 1:numel(mlist)
     m = mlist(k);
     try
-        o = FD_2(m, deg, nloc, ep, nu, method, lam, m <= msigma, ntype);
+        o = FD_2(m, deg, nloc, ep, nu, method, lam, m <= msigma, ntype, itype);
     catch err
         fprintf('%3d  failed: %s\n', m, err.message); continue
     end
