@@ -13,7 +13,7 @@ probs   = [1 2 3];                                   % test problems
 methods = {'pu', 'fd', 'pqr', 'gmls', 'gmls-vsk'};    % see solve_interface
 mnames  = {'D-RBF-PU', 'RBF-FD', 'pQR', 'GMLS', 'GMLS-VSK'};
 degs    = 2:6;               % polynomial degrees
-mlist   = 0:5;               % node levels
+mlist   = 0:4;               % node levels
 msigma  = 4;                 % compute sigma only up to this level
 nlocf   = @(Q) 3*Q;          % stencil size (FD, pQR, GMLS) / nodes per patch (PU), Q = dim P_deg
 prm.beta  = 5;               % PHS exponent (D-RBF-PU, RBF-FD)
