@@ -1,7 +1,7 @@
 clc; clear
 %% Rebuild the LaTeX tables from the saved results (no re-running):
 %  for every results/results_TP<k>.mat, per polynomial degree d:
-%  results/TP<k>_deg<d>.tex (max error and sigma).
+%  results/TP<k>_deg<d>.tex (rms, max error and sigma).
 
 outdir = 'results';
 F = dir(fullfile(outdir, 'results_TP*.mat'));

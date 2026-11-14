@@ -20,9 +20,9 @@ function out = solve_interface(pb, m, method, prm, do_sigma)
 %  prm    : struct with fields deg, nloc, beta, ep, nu, ntype, itype
 %  do_sigma : compute sigma = condest(A')/norm(A,inf) = ||A^-1||_inf (eq. (3.2))
 %
-%  out: h, N (all nodes, each interface node once), Nint, max (error over all unknowns:
-%       interior and boundary nodes, and u+ and u- at the interface nodes), sigma,
-%       nnz_row, time.
+%  out: h, N (all nodes, each interface node once), Nint, rms and max of the error over
+%       all unknowns (interior and boundary nodes, and u+ and u- at the interface nodes),
+%       sigma, nnz_row, time.
 
 deg = prm.deg;  Q = (deg + 1)*(deg + 2)/2;
 nloc = prm.nloc;
@@ -104,7 +104,7 @@ t = toc;
 ue = [pb.up(Xp(:,1), Xp(:,2)); pb.um(Xm(:,1), Xm(:,2))];
 e  = abs(u - ue);
 out.h = nd.h; out.Nint = nd.Nint; out.N = nIp + nIm + nBp + nBm + nG;
-out.max = max(e);
+out.rms = sqrt(mean(e.^2)); out.max = max(e);
 if nargin >= 5 && do_sigma
     out.sigma = condest(A') / norm(A, inf);
 else
