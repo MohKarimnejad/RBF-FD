@@ -1,14 +1,14 @@
 clc; clear; close all
 %% Comparison of D-RBF-PU, RBF-FD, pQR and GMLS on Test Problems 1-3 of
 %  Davydov & Safarpoor (2021). For every problem, polynomial degree and node level:
-%  rms and max error over the interior nodes, and sigma = condest(A')/norm(A,inf).
+%  max error over all unknowns (interior, boundary, and u+ and u- at the interface nodes),
+%  and sigma = condest(A')/norm(A,inf).
 %  Output (folder outdir):
 %    results_TP<k>.mat   : all numbers (struct R)
 %    TP<k>_deg<d>.tex     : LaTeX table per degree d: max error and sigma per method
-%    TP<k>_rms_deg<d>.tex : LaTeX table per degree d: rms error per method
 %                          (see write_tables; make_tables redoes them from the .mat files)
 %    TP<k>.csv           : all numbers in long format
-%    TP<k>_conv.fig/.png : rms error vs N_int, one panel per degree
+%    TP<k>_conv.fig/.png : max error vs N (all nodes), one panel per degree
 
 %% Parameters
 probs   = [1 2 3];                                   % test problems
@@ -32,8 +32,8 @@ for p = probs
     pb = problem_TP(p);
     R.problem = pb.name; R.methods = mnames; R.degs = degs; R.mlist = mlist; R.prm = prm;
     R.nloc = arrayfun(@(d) nlocf((d+1)*(d+2)/2), degs);
-    R.rms = nan(nd_, nm_, nM); R.max = R.rms; R.sigma = R.rms; R.time = R.rms;
-    R.Nint = nan(nd_, nm_); R.h = nan(nd_, nm_);
+    R.max = nan(nd_, nm_, nM); R.sigma = R.max; R.time = R.max;
+    R.N = nan(nd_, nm_); R.Nint = R.N; R.h = R.N;
     fprintf('\n===== %s, %s nodes, beta = %d, ep = %g, nu = %g =====\n', ...
         pb.name, prm.ntype, prm.beta, prm.ep, prm.nu);
     for id = 1:nd_
@@ -48,11 +48,11 @@ for p = probs
                     fprintf('deg %d, m %d, %-9s failed: %s\n', degs(id), m, mnames{iM}, err.message);
                     continue
                 end
-                R.rms(id,im,iM) = o.rms;  R.max(id,im,iM) = o.max;
+                R.max(id,im,iM) = o.max;
                 R.sigma(id,im,iM) = o.sigma;  R.time(id,im,iM) = o.time;
-                R.Nint(id,im) = o.Nint;  R.h(id,im) = o.h;
-                fprintf('deg %d, m %d, %-9s  rms %9.2e  max %9.2e  sigma %9.2e  (%.1f s)\n', ...
-                    degs(id), m, mnames{iM}, o.rms, o.max, o.sigma, o.time);
+                R.N(id,im) = o.N;  R.Nint(id,im) = o.Nint;  R.h(id,im) = o.h;
+                fprintf('deg %d, m %d, %-9s  N %7d  max %9.2e  sigma %9.2e  (%.1f s)\n', ...
+                    degs(id), m, mnames{iM}, o.N, o.max, o.sigma, o.time);
             end
         end
     end
@@ -68,14 +68,14 @@ function write_csv(R, fname)
 [id, im, iM] = ndgrid(1:numel(R.degs), 1:numel(R.mlist), 1:numel(R.methods));
 id = id(:); im = im(:); iM = iM(:);
 T = table(repmat({R.problem}, numel(id), 1), R.degs(id)', R.mlist(im)', ...
-    R.h(sub2ind(size(R.h), id, im)), R.Nint(sub2ind(size(R.Nint), id, im)), ...
-    R.methods(iM)', R.rms(:), R.max(:), R.sigma(:), R.time(:), ...
-    'VariableNames', {'problem','deg','m','h','Nint','method','rms','max','sigma','time'});
+    R.h(sub2ind(size(R.h), id, im)), R.N(sub2ind(size(R.N), id, im)), ...
+    R.Nint(sub2ind(size(R.Nint), id, im)), R.methods(iM)', R.max(:), R.sigma(:), R.time(:), ...
+    'VariableNames', {'problem','deg','m','h','N','Nint','method','max','sigma','time'});
 writetable(T, fname);
 end
 
 function plot_conv(R, fbase)
-% rms error vs N_int, one panel per degree, one line per method.
+% max error vs N (all nodes), one panel per degree, one line per method.
 mk = {'o-', 's-', 'd-', '^-', 'v-', 'x-'};
 nd_ = numel(R.degs);
 fig = figure('Position', [50 100 330*nd_ 360]);
@@ -83,14 +83,14 @@ tiledlayout(1, nd_, 'TileSpacing', 'compact');
 for id = 1:nd_
     nexttile
     for iM = 1:numel(R.methods)
-        loglog(R.Nint(id,:), R.rms(id,:,iM), mk{iM}, 'LineWidth', 1.2, 'MarkerSize', 5); hold on
+        loglog(R.N(id,:), R.max(id,:,iM), mk{iM}, 'LineWidth', 1.2, 'MarkerSize', 5); hold on
     end
-    grid on; xlabel('N_{int}');
-    if id == 1, ylabel('rms error'); end
+    grid on; xlabel('N');
+    if id == 1, ylabel('max error'); end
     title(sprintf('degree %d', R.degs(id)));
 end
 legend(R.methods, 'Location', 'southwest');
-sgtitle(sprintf('%s, %s nodes: rms error vs N_{int}', R.problem, R.prm.ntype));
+sgtitle(sprintf('%s, %s nodes: max error vs N', R.problem, R.prm.ntype));
 savefig(fig, [fbase, '.fig']);
 exportgraphics(fig, [fbase, '.png'], 'Resolution', 200);
 end
