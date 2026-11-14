@@ -1,5 +1,5 @@
 clc; clear; close all
-%% Comparison of D-RBF-PU, RBF-FD, pQR, GMLS and GMLS-VSK on Test Problems 1-3 of
+%% Comparison of D-RBF-PU, RBF-FD, pQR and GMLS on Test Problems 1-3 of
 %  Davydov & Safarpoor (2021). For every problem, polynomial degree and node level:
 %  rms and max error over the interior nodes, and sigma = condest(A')/norm(A,inf).
 %  Output (folder outdir):
@@ -12,8 +12,8 @@ clc; clear; close all
 
 %% Parameters
 probs   = [1 2 3];                                   % test problems
-methods = {'pu', 'fd', 'pqr', 'gmls', 'gmls-vsk'};    % see solve_interface
-mnames  = {'D-RBF-PU', 'RBF-FD', 'pQR', 'GMLS', 'GMLS-VSK'};
+methods = {'pu', 'fd', 'pqr', 'gmls'};    % see solve_interface (also 'gmls-vsk')
+mnames  = {'D-RBF-PU', 'RBF-FD', 'pQR', 'GMLS'};
 degs    = 2:6;               % polynomial degrees
 mlist   = 0:4;               % node levels
 msigma  = 4;                 % compute sigma only up to this level
@@ -21,7 +21,7 @@ nlocf   = @(Q) 3*Q;          % stencil size (FD, pQR, GMLS) / nodes per patch (P
 prm.beta  = 5;               % PHS exponent (D-RBF-PU, RBF-FD)
 prm.ep    = 10;              % Matern shape parameter (GMLS, GMLS-VSK)
 prm.nu    = 0.5;             % Matern order: 0.5, 1.5 or 2.5
-prm.lam   = 1;               % amplitude of the scale function (GMLS-VSK)
+prm.lam   = 1;               % amplitude of the scale function (only for 'gmls-vsk')
 prm.ntype = 'uniform';       % 'uniform' (grid, as in the paper) or 'halton'
 prm.itype = 'contour';       % TP2 interface nodes: 'contour' or 'projection'
 outdir  = 'results';
@@ -77,7 +77,7 @@ end
 
 function plot_conv(R, fbase)
 % rms error vs N_int, one panel per degree, one line per method.
-mk = {'o-', 's-', 'd-', '^-', 'v-'};
+mk = {'o-', 's-', 'd-', '^-', 'v-', 'x-'};
 nd_ = numel(R.degs);
 fig = figure('Position', [50 100 330*nd_ 360]);
 tiledlayout(1, nd_, 'TileSpacing', 'compact');
