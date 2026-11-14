@@ -4,24 +4,23 @@ clc; clear; close all
 %  rms and max error over the interior nodes, and sigma = condest(A')/norm(A,inf).
 %  Output (folder outdir):
 %    results_TP<k>.mat   : all numbers (struct R)
-%    TP<k>_<q>_deg<d>.tex : LaTeX table (booktabs), one per quantity q = rms, max, sigma
-%                          and degree d (see write_tables; make_tables redoes them from
-%                          the .mat files without re-running)
+%    TP<k>_deg<d>.tex     : LaTeX table per degree d: max error and sigma per method
+%    TP<k>_rms_deg<d>.tex : LaTeX table per degree d: rms error per method
+%                          (see write_tables; make_tables redoes them from the .mat files)
 %    TP<k>.csv           : all numbers in long format
 %    TP<k>_conv.fig/.png : rms error vs N_int, one panel per degree
 
 %% Parameters
 probs   = [1 2 3];                                   % test problems
-methods = {'pu', 'fd', 'pqr', 'gmls'};    % see solve_interface (also 'gmls-vsk')
+methods = {'pu', 'fd', 'pqr', 'gmls'};    % see solve_interface
 mnames  = {'D-RBF-PU', 'RBF-FD', 'pQR', 'GMLS'};
 degs    = 2:6;               % polynomial degrees
 mlist   = 0:4;               % node levels
 msigma  = 4;                 % compute sigma only up to this level
 nlocf   = @(Q) 3*Q;          % stencil size (FD, pQR, GMLS) / nodes per patch (PU), Q = dim P_deg
 prm.beta  = 5;               % PHS exponent (D-RBF-PU, RBF-FD)
-prm.ep    = 10;              % Matern shape parameter (GMLS, GMLS-VSK)
+prm.ep    = 10;              % Matern shape parameter (GMLS)
 prm.nu    = 0.5;             % Matern order: 0.5, 1.5 or 2.5
-prm.lam   = 1;               % amplitude of the scale function (only for 'gmls-vsk')
 prm.ntype = 'uniform';       % 'uniform' (grid, as in the paper) or 'halton'
 prm.itype = 'contour';       % TP2 interface nodes: 'contour' or 'projection'
 outdir  = 'results';
@@ -35,8 +34,8 @@ for p = probs
     R.nloc = arrayfun(@(d) nlocf((d+1)*(d+2)/2), degs);
     R.rms = nan(nd_, nm_, nM); R.max = R.rms; R.sigma = R.rms; R.time = R.rms;
     R.Nint = nan(nd_, nm_); R.h = nan(nd_, nm_);
-    fprintf('\n===== %s, %s nodes, beta = %d, ep = %g, nu = %g, lam = %g =====\n', ...
-        pb.name, prm.ntype, prm.beta, prm.ep, prm.nu, prm.lam);
+    fprintf('\n===== %s, %s nodes, beta = %d, ep = %g, nu = %g =====\n', ...
+        pb.name, prm.ntype, prm.beta, prm.ep, prm.nu);
     for id = 1:nd_
         prm.deg  = degs(id);
         prm.nloc = R.nloc(id);

@@ -16,11 +16,8 @@ function out = solve_interface(pb, m, method, prm, do_sigma)
 %                      nloc nearest nodes
 %           'gmls'     GMLS (weighted least squares, exact on P_deg) on the nloc nearest
 %                      nodes, weight theta_j = Matern_nu(ep * ||y_hat_j||)
-%           'gmls-vsk' as 'gmls' with the variably scaled weight
-%                      theta_j = Matern_nu(ep * sqrt(||y_hat_j||^2 + ((psi(x) - psi(y_j))/r)^2)),
-%                      psi = lam * signed distance to Gamma (pb.gs)
 %           (y_hat = (y - x)/r, r = stencil radius)
-%  prm    : struct with fields deg, nloc, beta, ep, nu, lam, ntype, itype
+%  prm    : struct with fields deg, nloc, beta, ep, nu, ntype, itype
 %  do_sigma : compute sigma = condest(A')/norm(A,inf) = ||A^-1||_inf (eq. (3.2))
 %
 %  out: h, Nint, rms, max (over the interior nodes), sigma, nnz_row, time.
@@ -28,8 +25,8 @@ function out = solve_interface(pb, m, method, prm, do_sigma)
 deg = prm.deg;  Q = (deg + 1)*(deg + 2)/2;
 nloc = prm.nloc;
 method = lower(method);
-if ~ismember(method, {'pu','fd','pqr','gmls','gmls-vsk'})
-    error('method must be ''pu'', ''fd'', ''pqr'', ''gmls'' or ''gmls-vsk''.');
+if ~ismember(method, {'pu','fd','pqr','gmls'})
+    error('method must be ''pu'', ''fd'', ''pqr'' or ''gmls''.');
 end
 if ismember(method, {'pu','fd'})
     if mod(prm.beta, 2) ~= 1, error('beta must be odd.'); end
@@ -53,8 +50,6 @@ ea = []; eb = [];                                 % monomials x^a y^b, a+b <= de
 for tt = 0:deg, for bb = 0:tt, ea(end+1) = tt-bb; eb(end+1) = bb; end, end %#ok<AGROW>
 K.method = method; K.beta = prm.beta; K.ea = ea; K.eb = eb; K.Q = Q; K.deg = deg;
 K.ep = prm.ep; K.nu = prm.nu;
-psiP = prm.lam * pb.gs(Xp(:,1), Xp(:,2));        % scale function (gmls-vsk only)
-psiM = prm.lam * pb.gs(Xm(:,1), Xm(:,2));
 
 tic
 if strcmp(method, 'pu')
@@ -68,7 +63,7 @@ if strcmp(method, 'pu')
 else
     nsp = min(nloc, Np);  nsm = min(nloc, Nm);
     rows = @(side, irows, type, nv) fd_rows(side, irows, type, nv, K);
-    sideP = {Xp, psiP, nsp};  sideM = {Xm, psiM, nsm};
+    sideP = {Xp, nsp};  sideM = {Xm, nsm};
 end
 
 %% Assemble the global system  A u = b
@@ -125,9 +120,8 @@ function [Ii, Jj, Vv] = fd_rows(side, irows, type, nvec, K)
 %   fd       : [A P; P' 0] [w_hat; gamma] = [L phi(||0 - Yh_j||); L p(0)]
 %   pqr      : pQR of order deg+1
 %   gmls     : w_hat = Th P (P' Th P)^-1 L p(0),  theta_j = Matern(ep ||Yh_j||)
-%   gmls-vsk : as gmls, theta_j = Matern(ep sqrt(||Yh_j||^2 + ((psi(x) - psi(y_j))/r)^2))
 % w = w_hat / r^2 (Laplacian) or w_hat / r (normal derivative).
-[X, psiX, n] = side{:};
+[X, n] = side{:};
 b = K.beta; ea = K.ea; eb = K.eb; Q = K.Q;
 Lp0 = zeros(Q,1); Lp0(ea==2 & eb==0) = 2; Lp0(ea==0 & eb==2) = 2;   % Lap p at 0
 idx = knnsearch(X, X(irows,:), 'K', n);              % n nearest nodes (incl. x itself)
@@ -158,9 +152,6 @@ for k = 1:numel(irows)
             al  = pqr_weights(P, rp, rr, K.deg + 1);
         case 'gmls'
             al  = gmls_weights(P, rp, matern(K.ep * rr, K.nu));
-        case 'gmls-vsk'
-            dp  = (psiX(irows(k)) - psiX(J)) / r;
-            al  = gmls_weights(P, rp, matern(K.ep * sqrt(rr.^2 + dp.^2), K.nu));
     end
     Ic{k} = k*ones(n,1); Jc{k} = J; Vc{k} = al / sc;
 end

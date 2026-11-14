@@ -12,7 +12,6 @@ function pb = problem_TP(k)
 %    pb.fp, pb.fm     : right-hand side f = -alpha Lap u on Omega+ / Omega-
 %    pb.gradp, pb.gradm : gradient of u+ / u-                        @(x,y) -> [ux, uy]
 %    pb.nrm           : unit normal on Gamma (the same for both sides)  @(x,y) -> [nx, ny]
-%    pb.gs            : signed distance to Gamma (scale function of GMLS-VSK)
 %    pb.nodes         : @(m, ntype, itype) node set X^(m) (nodes_TP1/2/3)
 %  The normal is the one used in the paper's jump condition; phi and psi are computed
 %  from the exact solution with this normal.
@@ -33,7 +32,6 @@ switch k
         pb.gradp = @(x,y) gradq(x,y) / 20;
         pb.gradm = @(x,y) gradq(x,y);
         pb.nrm   = @(x,y) [-6*x.^2, ones(size(x))] ./ sqrt(1 + 36*x.^4);   % into Omega+
-        pb.gs    = @(x,y) s(x,y) ./ sqrt(1 + 36*x.^4);                      % as in nodes_TP1
         pb.nodes = @(m, ntype, itype) nodes_TP1(m, ntype);
     case 2
         % Gamma: circle r = 1/2,  Omega+ : r < 1/2,  alpha+ = alpha- = 1,
@@ -47,7 +45,6 @@ switch k
         pb.gradp = @(x,y) [zeros(size(x)), zeros(size(x))];
         pb.gradm = @(x,y) [x, y] ./ (x.^2 + y.^2);
         pb.nrm   = @(x,y) [x, y] ./ sqrt(x.^2 + y.^2);                      % outward
-        pb.gs    = @(x,y) sqrt(x.^2 + y.^2) - 0.5;
         pb.nodes = @(m, ntype, itype) nodes_TP2(m, ntype, itype);
     case 3
         % Gamma: gamma(r,theta) = 0.5 + 0.1 sin(4 theta + pi) - r = 0,  Omega+ : gamma > 0,
@@ -65,7 +62,6 @@ switch k
         pb.gradp = @(x,y) 4 * rr(x,y).^2 .* [x, y];
         pb.gradm = @(x,y) [x.*y ./ rr(x,y), rr(x,y) + y.^2 ./ rr(x,y)];
         pb.nrm   = @(x,y) -ggam(x,y) ./ sqrt(sum(ggam(x,y).^2, 2));         % Omega+ -> Omega-
-        pb.gs    = @(x,y) gam(x,y) ./ sqrt(1 + (gt(x,y) ./ max(rr(x,y), 0.2)).^2);  % as in nodes_TP3
         pb.nodes = @(m, ntype, itype) nodes_TP3(m, ntype);
     otherwise
         error('k must be 1, 2 or 3.');
