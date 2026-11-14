@@ -90,7 +90,7 @@ for id = 1:nd_
     title(sprintf('degree %d', R.degs(id)));
 end
 legend(R.methods, 'Location', 'southwest');
-sgtitle(sprintf('%s: rms error vs N_{int}', R.problem));
+sgtitle(sprintf('%s, %s nodes: rms error vs N_{int}', R.problem, R.prm.ntype));
 savefig(fig, [fbase, '.fig']);
 exportgraphics(fig, [fbase, '.png'], 'Resolution', 200);
 end
